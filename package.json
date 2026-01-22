@@ -1,0 +1,23 @@
+{
+  "name": "dashboard-claude-code",
+  "version": "1.0.0",
+  "description": "Dashboard per monitorare sessioni Claude Code in parallelo",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && node server.js",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start:backend": "cd backend && node server.js",
+    "simulate": "cd backend && node simulator.js",
+    "status:active": "node update-status.js active \"Working on project\"",
+    "status:idle": "node update-status.js idle \"Idle\"",
+    "status:error": "node update-status.js error \"Error occurred\""
+  },
+  "keywords": ["dashboard", "claude-code", "monitoring"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

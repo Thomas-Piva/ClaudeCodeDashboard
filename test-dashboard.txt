@@ -1,0 +1,5 @@
+Test Dashboard - Questo è un file di test MODIFICATO
+Creato per verificare il monitoraggio in tempo reale
+Timestamp: 2026-01-22 12:50:00
+EDIT: Aggiunta riga dopo modifica
+Status: Test completato con successo!
