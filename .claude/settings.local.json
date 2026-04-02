@@ -6,7 +6,25 @@
       "Bash(python:*)",
       "Bash(while read line)",
       "Bash(do echo \"$line\")",
-      "Bash(done)"
+      "Bash(done)",
+      "WebSearch",
+      "WebFetch(domain:shlomio.wordpress.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:www.codeproject.com)",
+      "WebFetch(domain:pavolkutaj.medium.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:copyprogramming.com)",
+      "WebFetch(domain:eddiejackson.net)",
+      "WebFetch(domain:community.idera.com)",
+      "WebFetch(domain:blog.idera.com)",
+      "WebFetch(domain:powershell.one)",
+      "WebFetch(domain:techcommunity.microsoft.com)",
+      "WebFetch(domain:www.tutorialpedia.org)",
+      "Bash(powershell:*)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :3001)",
+      "Bash(taskkill:*)"
     ]
   }
 }

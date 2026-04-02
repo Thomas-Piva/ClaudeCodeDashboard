@@ -476,10 +476,40 @@ export class ClaudeSessionWatcher {
   startPeriodicCheck() {
     this.periodicCheckInterval = setInterval(() => {
       this.projects.forEach(project => {
-        const sessionFile = this.projectDirs.get(project.name);
-        if (sessionFile) {
-          this.readAndBroadcastSession(project, sessionFile);
+        const claudeDirName = this.projectPathToClaudeDirName(project.path);
+        const claudeProjectDir = path.join(CLAUDE_DIR, claudeDirName);
+        const latestFile = this.findActiveSessionFile(claudeProjectDir);
+
+        if (!latestFile) return;
+
+        const currentFile = this.projectDirs.get(project.name);
+        if (currentFile !== latestFile) {
+          // Nuova sessione rilevata (progetto era inattivo o ha una sessione più recente)
+          console.log(`🔄 ${project.name}: nuova sessione rilevata, aggiorno watcher`);
+          this.projectDirs.set(project.name, latestFile);
+
+          // Chiudi watcher vecchio se presente
+          const oldWatcher = this.watcherMap.get(project.name);
+          if (oldWatcher) {
+            oldWatcher.close();
+            this.watcherMap.delete(project.name);
+            const idx = this.watchers.indexOf(oldWatcher);
+            if (idx !== -1) this.watchers.splice(idx, 1);
+          }
+
+          // Avvia watcher sul nuovo file
+          const watcher = chokidar.watch(latestFile, {
+            persistent: true,
+            ignoreInitial: true,
+            awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 }
+          });
+          watcher.on('change', () => this.readAndBroadcastSession(project, latestFile));
+          watcher.on('error', e => console.error(`❌ Watcher ${project.name}:`, e.message));
+          this.watchers.push(watcher);
+          this.watcherMap.set(project.name, watcher);
         }
+
+        this.readAndBroadcastSession(project, latestFile);
       });
     }, 10000); // Ogni 10 secondi
 

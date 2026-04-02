@@ -168,16 +168,37 @@ app.post('/api/projects/:projectName/exclude', (req, res) => {
   res.json({ success: true, projectName });
 });
 
+const TERMINAL_PIDS_FILE = path.join(__dirname, 'terminal-pids.json');
+
+function loadTerminalPids() {
+  try {
+    if (fs.existsSync(TERMINAL_PIDS_FILE)) return JSON.parse(fs.readFileSync(TERMINAL_PIDS_FILE, 'utf-8'));
+  } catch {}
+  return {};
+}
+
+function saveTerminalPid(projectName, pid) {
+  const pids = loadTerminalPids();
+  pids[projectName] = pid;
+  fs.writeFileSync(TERMINAL_PIDS_FILE, JSON.stringify(pids, null, 2));
+}
+
 app.post('/api/projects/:projectName/open-terminal', (req, res) => {
   const { projectName } = req.params;
   const project = config.projects.find(p => p.name === projectName);
   if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
   if (!fs.existsSync(project.path)) return res.status(404).json({ error: 'Directory non trovata' });
 
-  const command = `start cmd.exe /K "cd /d "${project.path}""`;
-  exec(command, (error) => {
+  // Lancia cmd e cattura il PID via PowerShell -PassThru
+  const psScript = `
+$p = Start-Process cmd.exe -ArgumentList '/K','title claude - ${project.name.replace(/'/g, "''")} & cd /d "${project.path.replace(/\\/g, '\\\\')}" & claude' -PassThru
+Write-Output $p.Id
+`;
+  runPsFile(psScript, 8000, (error, stdout) => {
     if (error) return res.status(500).json({ error: error.message });
-    res.json({ success: true, projectPath: project.path });
+    const pid = parseInt(stdout.trim());
+    if (!isNaN(pid)) saveTerminalPid(project.name, pid);
+    res.json({ success: true, projectPath: project.path, pid: isNaN(pid) ? null : pid });
   });
 });
 
@@ -219,12 +240,24 @@ app.get('/api/projects/:projectName/terminal-windows', (req, res) => {
   // Lo slug è tipo "aggiorna-documentazione-repo", lo convertiamo in parole per il confronto
   const slugWords = slug ? slug.replace(/-/g, ' ') : '';
 
+  const savedPid = loadTerminalPids()[project.name] || 0;
+
   const psScript = `
 $projectPath      = '${project.path.replace(/\\/g, '/')}'
+$projectName      = '${project.name.replace(/'/g, "''")}'
+$savedPid         = ${savedPid}
 $sessionsDir      = [System.IO.Path]::Combine($env:USERPROFILE, '.claude', 'sessions')
 $claudeProjectsBase = [System.IO.Path]::Combine($env:USERPROFILE, '.claude', 'projects')
 
 $results = @()
+
+# 0. PID salvato dalla dashboard: cmd aperto da "Apri Terminale"
+if ($savedPid -gt 0) {
+    $proc = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
+    if ($proc -and $proc.MainWindowHandle -ne [IntPtr]::Zero) {
+        $results += [PSCustomObject]@{ pid=$savedPid; name=$proc.ProcessName; title=$proc.MainWindowTitle; match='dashboard'; claudePid=0; tabIndex=-1 }
+    }
+}
 
 # 1. Cerca nelle sessioni attive di Claude quella con cwd = projectPath
 if (Test-Path $sessionsDir) {
@@ -324,22 +357,29 @@ if (Test-Path $sessionsDir) {
     }
 }
 
-# 2. Fallback: cerca nei titoli delle finestre il nome del progetto o lo slug
+# 2. Fallback: cerca finestra cmd con titolo = nome progetto (aperta dalla dashboard)
+if ($results.Count -eq 0) {
+    Get-Process -Name 'cmd' -ErrorAction SilentlyContinue | ForEach-Object {
+        if ($_.MainWindowTitle -and $_.MainWindowTitle.ToLower() -eq $projectName.ToLower()) {
+            $results += [PSCustomObject]@{ pid=$_.Id; name=$_.ProcessName; title=$_.MainWindowTitle; match='progetto'; claudePid=0; tabIndex=-1 }
+        }
+    }
+}
+# 3. Fallback titolo parziale: nome progetto o cartella contenuta nel titolo
 if ($results.Count -eq 0) {
     $projLeaf = [System.IO.Path]::GetFileName($projectPath.TrimEnd('/\'))
-    $slugWords3 = if ($slugWords) { ($slugWords -join '|') } else { '' }
     Get-Process -Name 'WindowsTerminal','cmd' -ErrorAction SilentlyContinue | ForEach-Object {
         if ($_.MainWindowTitle) {
             $titleLow = $_.MainWindowTitle.ToLower()
-            $isMatch = ($projLeaf -ne '' -and $titleLow -like "*$($projLeaf.ToLower())*") -or
-                       ($slugHint  -ne '' -and $titleLow -like "*$($slugHint.Substring(0,[Math]::Min(20,$slugHint.Length)).ToLower())*")
+            $isMatch = ($projectName -ne '' -and $titleLow -like "*$($projectName.ToLower())*") -or
+                       ($projLeaf   -ne '' -and $titleLow -like "*$($projLeaf.ToLower())*")
             if ($isMatch) {
                 $results += [PSCustomObject]@{ pid=$_.Id; name=$_.ProcessName; title=$_.MainWindowTitle; match='progetto'; claudePid=0; tabIndex=-1 }
             }
         }
     }
 }
-# 3. Ultimo fallback: mostra tutti i terminali visibili (nessuna sessione attiva trovata)
+# 4. Ultimo fallback: tutti i terminali visibili
 if ($results.Count -eq 0) {
     Get-Process -Name 'WindowsTerminal','cmd' -ErrorAction SilentlyContinue | ForEach-Object {
         if ($_.MainWindowTitle) {
