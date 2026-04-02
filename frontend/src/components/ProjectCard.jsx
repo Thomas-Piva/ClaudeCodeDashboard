@@ -66,7 +66,12 @@ function WindowRow({ window: w }) {
       fontFamily: 'JetBrains Mono, monospace', fontSize: '0.62rem',
       display: 'flex', alignItems: 'center', gap: 6
     }}>
-      <span style={{ color: 'var(--blue)', flexShrink: 0 }}>PID {w.pid}</span>
+      <span style={{
+        flexShrink: 0, fontSize: '0.58rem', padding: '1px 4px', borderRadius: 3,
+        background: w.match === 'tab' ? 'rgba(0,230,118,0.12)' : w.match === 'progetto' ? 'rgba(100,181,246,0.12)' : 'rgba(255,255,255,0.05)',
+        color: w.match === 'tab' ? 'var(--green)' : w.match === 'progetto' ? 'var(--blue)' : 'var(--text-muted)',
+        border: `1px solid ${w.match === 'tab' ? 'var(--green-border)' : w.match === 'progetto' ? 'rgba(100,181,246,0.3)' : 'var(--border-dim)'}`,
+      }}>{w.match === 'tab' ? 'match' : w.match === 'progetto' ? 'progetto' : 'fallback'}</span>
       <span style={{ color: 'var(--text-secondary)', flexShrink: 0 }}>{w.name}</span>
       <span style={{ color: 'var(--text-primary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.title}</span>
       <button

@@ -220,8 +220,9 @@ app.get('/api/projects/:projectName/terminal-windows', (req, res) => {
   const slugWords = slug ? slug.replace(/-/g, ' ') : '';
 
   const psScript = `
-$projectPath = '${project.path.replace(/\\/g, '/')}'
-$sessionsDir = [System.IO.Path]::Combine($env:USERPROFILE, '.claude', 'sessions')
+$projectPath      = '${project.path.replace(/\\/g, '/')}'
+$sessionsDir      = [System.IO.Path]::Combine($env:USERPROFILE, '.claude', 'sessions')
+$claudeProjectsBase = [System.IO.Path]::Combine($env:USERPROFILE, '.claude', 'projects')
 
 $results = @()
 
@@ -231,7 +232,18 @@ if (Test-Path $sessionsDir) {
         try {
             $s = Get-Content $_.FullName -Raw | ConvertFrom-Json
             if ($s.cwd -and $s.cwd.Replace('\','/').ToLower() -eq $projectPath.ToLower() -and $s.pid) {
-                # Trovata sessione per questo progetto — risali al terminale padre
+                # Leggi lo slug dal file .jsonl della sessione (stesso sessionId)
+                $slugHint = ''
+                if ($s.sessionId) {
+                    $jsonlFile = Get-ChildItem $claudeProjectsBase -Recurse -Filter "$($s.sessionId).jsonl" -EA SilentlyContinue | Select-Object -First 1
+                    if ($jsonlFile) {
+                        $lines = [System.IO.File]::ReadAllLines($jsonlFile.FullName)
+                        for ($li = $lines.Length - 1; $li -ge [Math]::Max(0, $lines.Length - 100); $li--) {
+                            try { $e = $lines[$li] | ConvertFrom-Json; if ($e.slug) { $slugHint = ($e.slug -replace '-',' ').ToLower(); break } } catch {}
+                        }
+                    }
+                }
+                # Risali al terminale padre
                 $claudePid = [int]$s.pid
                 $cur = $claudePid
                 $visited = @{}
@@ -261,29 +273,49 @@ if (Test-Path $sessionsDir) {
                             Add-Type -AssemblyName UIAutomationClient -ErrorAction SilentlyContinue
                             Add-Type -AssemblyName UIAutomationTypes -ErrorAction SilentlyContinue
                             $root = [System.Windows.Automation.AutomationElement]::FromHandle($termProc.MainWindowHandle)
-                            $tabCond = New-Object System.Windows.Automation.PropertyCondition(
-                                [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-                                [System.Windows.Automation.ControlType]::TabItem
-                            )
-                            $tabs = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $tabCond)
-                            $tabIndex = 0
-                            foreach ($tab in $tabs) {
-                                $tabTitle = $tab.Current.Name
-                                # Cerca la tab che appartiene a questa sessione Claude
-                                $isThisSession = (
-                                    ($s.slug -and $tabTitle -like "*$($s.slug -replace '-',' ')*") -or
-                                    ($termName2 -ne '' -and $tabTitle -like "*$termName2*")
-                                )
-                                $results += [PSCustomObject]@{
-                                    pid=$termPid; name=$termProc.ProcessName
-                                    title=$tabTitle; match=if($isThisSession){'sessione'}else{'terminale'}
-                                    tabIndex=$tabIndex
+                            # Windows Terminal usa ListItem (XAML Islands), non TabItem — proviamo entrambi
+                            $tabs = $null
+                            foreach ($ct in @([System.Windows.Automation.ControlType]::TabItem, [System.Windows.Automation.ControlType]::ListItem)) {
+                                $cond = New-Object System.Windows.Automation.PropertyCondition(
+                                    [System.Windows.Automation.AutomationElement]::ControlTypeProperty, $ct)
+                                $found = $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)
+                                if ($found.Count -gt 0) { $tabs = $found; break }
+                            }
+                            if ($tabs -and $tabs.Count -gt 0) {
+                                $tabIndex = 0
+                                $matchedTabs = @()
+                                $allTabsList = @()
+                                foreach ($tab in $tabs) {
+                                    $tabTitle = $tab.Current.Name
+                                    $entry = [PSCustomObject]@{
+                                        pid=$termPid; name=$termProc.ProcessName
+                                        title=$tabTitle; match='tab'
+                                        tabIndex=$tabIndex
+                                    }
+                                    $allTabsList += $entry
+                                    # Filtra per slug: normalizza e controlla overlap parole significative
+                                    if ($slugHint -ne '') {
+                                        $titleNorm = ($tabTitle.ToLower() -replace '[^a-z0-9 ]',' ' -replace '\s+',' ').Trim()
+                                        $slugNorm  = ($slugHint.ToLower() -replace '[^a-z0-9 ]',' ' -replace '\s+',' ').Trim()
+                                        $sigWords = ($slugNorm -split '\s+') | Where-Object { $_.Length -ge 4 }
+                                        $hits = ($sigWords | Where-Object { $titleNorm -like "*$_*" }).Count
+                                        if ($hits -ge [Math]::Min(2, [Math]::Max(1, $sigWords.Count))) {
+                                            $matchedTabs += $entry
+                                        }
+                                    }
+                                    $tabIndex++
                                 }
-                                $tabIndex++
+                                if ($matchedTabs.Count -gt 0) {
+                                    $results += $matchedTabs
+                                } else {
+                                    $results += $allTabsList
+                                }
+                            } else {
+                                # Nessuna tab trovata via UIAutomation: mostra solo la finestra WT
+                                $results += [PSCustomObject]@{ pid=$termPid; name=$termProc.ProcessName; title=$termProc.MainWindowTitle; match='terminale'; tabIndex=-1 }
                             }
                         } catch {
-                            # Fallback senza UIAutomation
-                            $results += [PSCustomObject]@{ pid=$termPid; name=$termProc.ProcessName; title=$termProc.MainWindowTitle; match='sessione'; tabIndex=-1 }
+                            $results += [PSCustomObject]@{ pid=$termPid; name=$termProc.ProcessName; title=$termProc.MainWindowTitle; match='terminale'; tabIndex=-1 }
                         }
                     }
                 }
@@ -292,11 +324,26 @@ if (Test-Path $sessionsDir) {
     }
 }
 
-# 2. Fallback: mostra tutti i WindowsTerminal con finestra visibile
+# 2. Fallback: cerca nei titoli delle finestre il nome del progetto o lo slug
+if ($results.Count -eq 0) {
+    $projLeaf = [System.IO.Path]::GetFileName($projectPath.TrimEnd('/\'))
+    $slugWords3 = if ($slugWords) { ($slugWords -join '|') } else { '' }
+    Get-Process -Name 'WindowsTerminal','cmd' -ErrorAction SilentlyContinue | ForEach-Object {
+        if ($_.MainWindowTitle) {
+            $titleLow = $_.MainWindowTitle.ToLower()
+            $isMatch = ($projLeaf -ne '' -and $titleLow -like "*$($projLeaf.ToLower())*") -or
+                       ($slugHint  -ne '' -and $titleLow -like "*$($slugHint.Substring(0,[Math]::Min(20,$slugHint.Length)).ToLower())*")
+            if ($isMatch) {
+                $results += [PSCustomObject]@{ pid=$_.Id; name=$_.ProcessName; title=$_.MainWindowTitle; match='progetto'; claudePid=0; tabIndex=-1 }
+            }
+        }
+    }
+}
+# 3. Ultimo fallback: mostra tutti i terminali visibili (nessuna sessione attiva trovata)
 if ($results.Count -eq 0) {
     Get-Process -Name 'WindowsTerminal','cmd' -ErrorAction SilentlyContinue | ForEach-Object {
         if ($_.MainWindowTitle) {
-            $results += [PSCustomObject]@{ pid=$_.Id; name=$_.ProcessName; title=$_.MainWindowTitle; match='terminale'; claudePid=0 }
+            $results += [PSCustomObject]@{ pid=$_.Id; name=$_.ProcessName; title=$_.MainWindowTitle; match='fallback'; claudePid=0; tabIndex=-1 }
         }
     }
 }
