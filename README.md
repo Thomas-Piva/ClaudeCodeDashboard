@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="frontend/public/icona.png" alt="Claude Code Dashboard" width="280" />
+
 # Dashboard Claude Code
 
 **Monitoraggio in tempo reale di sessioni Claude Code parallele**
