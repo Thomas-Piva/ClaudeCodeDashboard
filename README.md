@@ -33,11 +33,12 @@
 - Tipografia: **Syne** (interfaccia) + **JetBrains Mono** (dati/codice)
 - Indicatori di stato con neon glow animato
 - Layout a 3 colonne: **Attivi** / **Da Controllare** / **Inattivi** (colonna Inattivi collassabile)
+- **Ricerca in tempo reale** nella colonna Inattivi — filtra card per nome
 
 ### Gestione Progetti
 | Azione | Descrizione |
 |--------|-------------|
-| **Escludi percorso** | Bottone ⊗ su ogni card — rimozione immediata + salvataggio in `excluded-paths.json` |
+| **Escludi percorso** | Bottone ⊗ su ogni card — salvataggio in `excluded-paths.json`, attivo al prossimo riavvio del server |
 | **Apri CMD** | Apre cmd.exe nella directory del progetto |
 | **Trova finestra** | Individua la sessione Claude nel terminale leggendo `~/.claude/sessions/` — elenca ogni tab di Windows Terminal via UIAutomation |
 | **Porta in primo piano** | Bottone ⬆ su ogni risultato — porta Windows Terminal in primo piano e seleziona la tab corretta |
@@ -322,6 +323,22 @@ Il client si riconnette ogni 3 secondi automaticamente. Se il problema persiste:
 ---
 
 ## Changelog
+
+### v4.4.0 (2026-04-02) — Ricerca Inattivi + Fix Excluded Paths
+- **Ricerca card inattivi**: barra di testo nella colonna Inattivi, filtra per nome in tempo reale
+- **Fix `excluded-paths.json`**: username Windows con punti (es. `attilio.pregnolato.EGMSISTEMI`) veniva salvato con backslash al posto dei punti — il percorso non matchava mai e il progetto non veniva escluso
+
+### v4.3.0 (2026-04-02) — PID Tracking + Dynamic Session Re-watch
+- **Apri CMD**: imposta il titolo della finestra cmd a `claude - <nome>` e salva il PID su file
+- **Trova finestra**: priorità al match tramite PID salvato dalla dashboard (badge viola **dashboard**)
+- **Trova finestra**: nuovo fallback per titolo esatto della finestra
+- **claude-watcher**: il periodic check rileva nuove sessioni e aggiorna il watcher dinamicamente
+- **ProjectCard**: badge viola `dashboard` per terminali aperti direttamente dalla dashboard
+
+### v4.2.0 (2026-04-02) — Slug-based Tab Filtering + Match Badge
+- **Trova finestra**: filtraggio tab tramite slug sessione Claude (`sharded-wibbling-crab`, ecc.)
+- **Trova finestra**: fallback intelligente quando lo slug non è presente nel titolo
+- **ProjectCard**: badge che indica il tipo di match trovato (slug / titolo / pid)
 
 ### v4.1.0 (2026-04-02) — UIAutomation Tab Detection + Bugfix
 - **Trova finestra**: rilevamento sessioni da `~/.claude/sessions/*.json` invece di scansione processi
