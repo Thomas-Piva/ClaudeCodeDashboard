@@ -71,6 +71,7 @@ function App() {
   const conn = CONN[connectionStatus] || CONN.disconnected;
   const [showAdmin, setShowAdmin] = useState(false);
   const [showIdle, setShowIdle] = useState(false);
+  const [idleSearch, setIdleSearch] = useState('');
 
   const active  = projects.filter(p => projectStatuses[p.name]?.status === 'active');
   const check   = projects.filter(p => projectStatuses[p.name]?.status === 'check');
@@ -283,11 +284,31 @@ function App() {
                 onToggle={() => setShowIdle(false)}
                 isOpen={true}
               />
+              <input
+                type="text"
+                placeholder="cerca..."
+                value={idleSearch}
+                onChange={e => setIdleSearch(e.target.value)}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  marginBottom: 11, padding: '6px 10px',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid var(--slate-border)',
+                  borderRadius: 6, outline: 'none',
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem',
+                  color: 'var(--text-primary)', letterSpacing: '0.04em',
+                }}
+              />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
-                {idle.map(p => (
-                  <ProjectCard key={p.name} project={p} status={projectStatuses[p.name]} />
-                ))}
+                {idle
+                  .filter(p => p.name.toLowerCase().includes(idleSearch.toLowerCase()))
+                  .map(p => (
+                    <ProjectCard key={p.name} project={p} status={projectStatuses[p.name]} />
+                  ))}
                 {idle.length === 0 && <EmptySlot text="// tutti attivi ✦" />}
+                {idle.length > 0 && idleSearch && !idle.some(p => p.name.toLowerCase().includes(idleSearch.toLowerCase())) && (
+                  <EmptySlot text={`// nessun risultato per "${idleSearch}"`} />
+                )}
               </div>
             </div>
           ) : (
