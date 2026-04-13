@@ -1,4 +1,4 @@
-export default function SearchBar({ onClose }) {
+export default function SearchBar({ onClose, onSelect }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: 120 }}
       onClick={onClose}>
