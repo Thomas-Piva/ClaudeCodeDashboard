@@ -360,7 +360,7 @@ export default function Dashboard() {
           fontFamily: 'JetBrains Mono, monospace', fontSize: '0.6rem',
           color: 'var(--text-muted)', letterSpacing: '0.08em', margin: 0
         }}>
-          CLAUDE CODE DASHBOARD v4.4.0 — REACT + WEBSOCKET
+          CLAUDE CODE DASHBOARD v5.0.0 — REACT + WEBSOCKET + SQLITE
         </p>
       </footer>
 
