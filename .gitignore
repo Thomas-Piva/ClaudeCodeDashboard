@@ -32,3 +32,6 @@ coverage/
 # Temporary files
 *.tmp
 .cache/
+
+# AgentsView SQLite database
+backend/agentsview.db
