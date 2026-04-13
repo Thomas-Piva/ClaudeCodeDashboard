@@ -2,6 +2,7 @@ import chokidar from 'chokidar';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { indexSession } from './indexer.js';
 
 const CLAUDE_DIR = path.join(os.homedir(), '.claude', 'projects');
 
@@ -355,6 +356,12 @@ export class ClaudeSessionWatcher {
     watcher
       .on('change', () => {
         this.readAndBroadcastSession(project, sessionFile);
+        // Re-index session in background (non-blocking)
+        setImmediate(() => {
+          try {
+            indexSession(sessionFile, project.name);
+          } catch {}
+        });
       })
       .on('error', (error) => {
         console.error(`❌ Errore watcher ${project.name}:`, error.message);
@@ -474,7 +481,15 @@ export class ClaudeSessionWatcher {
             ignoreInitial: true,
             awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 }
           });
-          watcher.on('change', () => this.readAndBroadcastSession(project, latestFile));
+          watcher.on('change', () => {
+            this.readAndBroadcastSession(project, latestFile);
+            // Re-index session in background (non-blocking)
+            setImmediate(() => {
+              try {
+                indexSession(latestFile, project.name);
+              } catch {}
+            });
+          });
           watcher.on('error', e => console.error(`❌ Watcher ${project.name}:`, e.message));
           this.watchers.push(watcher);
           this.watcherMap.set(project.name, watcher);
