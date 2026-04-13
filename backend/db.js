@@ -55,10 +55,20 @@ function initSchema(db) {
         VALUES (new.id, new.session_id, new.role, new.content, new.timestamp, new.tools_used);
     END;
 
+    CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+      INSERT INTO messages_fts(messages_fts, rowid, session_id, role, content, timestamp, tools_used)
+        VALUES ('delete', old.id, old.session_id, old.role, old.content, old.timestamp, old.tools_used);
+      INSERT INTO messages_fts(rowid, session_id, role, content, timestamp, tools_used)
+        VALUES (new.id, new.session_id, new.role, new.content, new.timestamp, new.tools_used);
+    END;
+
     CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
       INSERT INTO messages_fts(messages_fts, rowid, session_id, role, content, timestamp, tools_used)
         VALUES ('delete', old.id, old.session_id, old.role, old.content, old.timestamp, old.tools_used);
     END;
+
+    CREATE INDEX IF NOT EXISTS idx_messages_session_id ON messages(session_id);
+    CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project);
   `);
 }
 
