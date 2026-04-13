@@ -10,6 +10,8 @@ import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { ClaudeSessionWatcher } from './claude-watcher.js';
 import { discoverFromRoots, loadScanPaths, saveScanPaths } from './path-scanner.js';
+import { listSessions, getSession, getMessages, searchMessages, getAnalytics } from './db.js';
+import { indexSession } from './indexer.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -119,6 +121,26 @@ function handleNewProjectDir(claudeDirName) {
     }
   }
 }
+
+// ── Catch-up indexing on startup ─────────────────────
+(async () => {
+  try {
+    const claudeDir = path.join(os.homedir(), '.claude', 'projects');
+    if (fs.existsSync(claudeDir)) {
+      const projectDirs = fs.readdirSync(claudeDir);
+      for (const dir of projectDirs) {
+        const dirPath = path.join(claudeDir, dir);
+        if (!fs.statSync(dirPath).isDirectory()) continue;
+        const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jsonl'));
+        for (const file of files) {
+          indexSession(path.join(dirPath, file), dir);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Catch-up indexing error:', err.message);
+  }
+})();
 
 // ── Watcher ──────────────────────────────────────────────────
 const projectWatcher = new ClaudeSessionWatcher(config.projects, broadcastStatus, broadcastConfigUpdate, handleNewProjectDir);
@@ -686,6 +708,118 @@ app.delete('/api/admin/excluded-paths/:index', (req, res) => {
   paths.splice(idx, 1);
   saveExcludedPaths(paths);
   res.json({ success: true, paths });
+});
+
+// ── REST: Sessions ───────────────────────────────────
+app.get('/api/sessions', (req, res) => {
+  try {
+    const { project, limit = '20', offset = '0' } = req.query;
+    const sessions = listSessions({ project, limit: parseInt(limit), offset: parseInt(offset) });
+    res.json(sessions);
+  } catch (err) {
+    console.error('GET /api/sessions error:', err.message);
+    res.json([]);
+  }
+});
+
+app.get('/api/sessions/:id', (req, res) => {
+  try {
+    const session = getSession(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Not found' });
+    const { limit = '50', offset = '0' } = req.query;
+    const messages = getMessages(req.params.id, { limit: parseInt(limit), offset: parseInt(offset) });
+    res.json({ ...session, messages });
+  } catch (err) {
+    console.error('GET /api/sessions/:id error:', err.message);
+    res.status(500).json({ error: 'DB error' });
+  }
+});
+
+app.get('/api/sessions/:id/messages', (req, res) => {
+  try {
+    const { limit = '50', offset = '0' } = req.query;
+    const messages = getMessages(req.params.id, { limit: parseInt(limit), offset: parseInt(offset) });
+    res.json(messages);
+  } catch (err) {
+    res.json([]);
+  }
+});
+
+app.get('/api/sessions/:id/export', (req, res) => {
+  try {
+    const session = getSession(req.params.id);
+    if (!session) return res.status(404).send('Not found');
+    const messages = getMessages(req.params.id, { limit: 10000 });
+
+    const escHtml = s => String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const msgsHtml = messages.map(m => {
+      const tools = (() => { try { return JSON.parse(m.tools_used || '[]'); } catch { return []; } })();
+      const toolChips = tools.map(t => `<span class="tool-chip">${escHtml(t)}</span>`).join('');
+      return `<div class="msg msg-${escHtml(m.role)}">
+  <div class="msg-role">${escHtml(m.role)}${toolChips}</div>
+  <div class="msg-content">${escHtml(m.content)}</div>
+</div>`;
+    }).join('\n');
+
+    const html = `<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>${escHtml(session.project)} — Claude Code Session</title>
+<style>
+  body{background:#090b12;color:#e2e8f0;font-family:'JetBrains Mono',monospace;font-size:13px;padding:32px;max-width:900px;margin:0 auto}
+  h1{font-size:1.1rem;color:#f8fafc;margin-bottom:4px}
+  .meta{font-size:0.75rem;color:#64748b;margin-bottom:24px}
+  .msg{border:1px solid #1e293b;border-radius:8px;padding:14px 16px;margin-bottom:12px}
+  .msg-user{border-color:#1e3a5f;background:rgba(30,58,95,0.15)}
+  .msg-assistant{border-color:#1a2e1a;background:rgba(20,40,20,0.15)}
+  .msg-role{font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;color:#475569;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .msg-user .msg-role{color:#60a5fa}
+  .msg-assistant .msg-role{color:#4ade80}
+  .msg-content{white-space:pre-wrap;line-height:1.6;color:#cbd5e1}
+  .tool-chip{background:rgba(100,181,246,0.12);color:#64b5f6;border:1px solid rgba(100,181,246,0.3);border-radius:4px;padding:1px 6px;font-size:0.6rem}
+</style>
+</head>
+<body>
+<h1>${escHtml(session.project)}</h1>
+<div class="meta">${new Date(session.updated_at).toLocaleString('it-IT')} · ${session.message_count} messaggi</div>
+${msgsHtml}
+</body>
+</html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${session.project.replace(/[^a-z0-9]/gi, '_')}_session.html"`);
+    res.send(html);
+  } catch (err) {
+    console.error('Export error:', err.message);
+    res.status(500).send('Error');
+  }
+});
+
+// ── REST: Search ─────────────────────────────────────
+app.get('/api/search', (req, res) => {
+  try {
+    const { q = '', limit = '20' } = req.query;
+    if (!q.trim()) return res.json([]);
+    const results = searchMessages(q.trim(), parseInt(limit));
+    res.json(results);
+  } catch (err) {
+    console.error('Search error:', err.message);
+    res.json([]);
+  }
+});
+
+// ── REST: Analytics ──────────────────────────────────
+app.get('/api/analytics', (req, res) => {
+  try {
+    res.json(getAnalytics());
+  } catch (err) {
+    console.error('Analytics error:', err.message);
+    res.json({ heatmap: [], toolUsage: [], projectBreakdown: [] });
+  }
 });
 
 // ── Avvio ────────────────────────────────────────────────────
