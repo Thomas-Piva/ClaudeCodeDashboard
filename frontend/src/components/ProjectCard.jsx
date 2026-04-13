@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { API_BASE } from '../config.js';
+import SessionList from './SessionList.jsx';
 
 const STATUS_STYLE = {
   active: { color: 'var(--green)', bg: 'var(--green-dim)', border: 'var(--green-border)', label: 'ATTIVO' },
@@ -99,6 +100,7 @@ function WindowRow({ window: w }) {
 
 export default function ProjectCard({ project, status }) {
   const [showHistory, setShowHistory] = useState(false);
+  const [showSessions, setShowSessions] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
   const [markError, setMarkError] = useState(null);
   const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
@@ -430,6 +432,28 @@ export default function ProjectCard({ project, status }) {
           // attesa dati...
         </div>
       )}
+
+      {/* ── Sessioni ────────────────────────────────────────── */}
+      <div style={{ marginTop: 10 }}>
+        <button
+          onClick={() => setShowSessions(v => !v)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '4px 10px',
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 5,
+            fontFamily: 'JetBrains Mono, monospace', fontSize: '0.62rem',
+            color: 'var(--text-secondary)', cursor: 'pointer',
+            transition: 'border-color 0.15s, color 0.15s'
+          }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-mid)'; e.currentTarget.style.color = 'var(--text-primary)'; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-subtle)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+        >
+          {showSessions ? '▼' : '▶'} sessioni
+        </button>
+        {showSessions && <SessionList projectName={project.name} />}
+      </div>
 
     </div>
   );
