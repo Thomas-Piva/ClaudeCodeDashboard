@@ -193,3 +193,17 @@ export function getAnalytics() {
 
   return { heatmap: heatmapRows, toolUsage, projectBreakdown };
 }
+
+// Atomically replace all messages for a session (clears old, inserts new in one transaction).
+export function replaceMessages(sessionId, msgs) {
+  const db = getDb();
+  const del = db.prepare('DELETE FROM messages WHERE session_id = ?');
+  const ins = db.prepare(`
+    INSERT INTO messages (session_id, role, content, timestamp, tools_used)
+    VALUES (@session_id, @role, @content, @timestamp, @tools_used)
+  `);
+  db.transaction(() => {
+    del.run(sessionId);
+    for (const m of msgs) ins.run(m);
+  })();
+}

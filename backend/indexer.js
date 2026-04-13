@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { upsertSession, clearMessages, insertMessage, sessionIdFromPath } from './db.js';
+import { upsertSession, sessionIdFromPath, replaceMessages } from './db.js';
 
 /**
  * Parse Claude Code JSONL file and index into SQLite.
@@ -100,11 +100,8 @@ export function indexSession(filePath, projectName) {
       tool_calls: JSON.stringify(toolCalls)
     });
 
-    // Replace all messages (idempotent re-index)
-    clearMessages(sessionId);
-    for (const msg of messages) {
-      insertMessage(msg);
-    }
+    // Replace all messages atomically (idempotent re-index)
+    replaceMessages(sessionId, messages);
 
     console.log(`📚 Indexed: ${projectName} — ${messages.length} messages`);
   } catch (err) {
