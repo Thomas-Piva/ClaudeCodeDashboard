@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API_BASE } from '../config.js';
 
@@ -19,7 +19,7 @@ function ToolChip({ name }) {
   );
 }
 
-function Message({ msg, isSelected, showThinking }) {
+function Message({ msg, isSelected }) {
   const isUser = msg.role === 'user';
   const tools = (() => { try { return JSON.parse(msg.tools_used || '[]'); } catch { return []; } })();
 
@@ -163,7 +163,6 @@ export default function Session() {
           msg={msg}
           index={i}
           isSelected={i === selectedIdx}
-          showThinking={true}
         />
       ))}
     </div>

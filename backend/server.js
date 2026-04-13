@@ -730,7 +730,7 @@ app.get('/api/sessions/:id', (req, res) => {
     const session = getSession(req.params.id);
     if (!session) return res.status(404).json({ error: 'Not found' });
     const { limit = '50', offset = '0' } = req.query;
-    const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+    const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 2000);
     const parsedOffset = Math.max(parseInt(offset) || 0, 0);
     const messages = getMessages(req.params.id, { limit: parsedLimit, offset: parsedOffset });
     res.json({ ...session, messages });
