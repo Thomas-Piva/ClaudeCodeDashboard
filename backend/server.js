@@ -133,6 +133,7 @@ function handleNewProjectDir(claudeDirName) {
         if (!fs.statSync(dirPath).isDirectory()) continue;
         const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jsonl'));
         for (const file of files) {
+          await new Promise(r => setImmediate(r)); // yield between files
           indexSession(path.join(dirPath, file), dir);
         }
       }
@@ -714,7 +715,9 @@ app.delete('/api/admin/excluded-paths/:index', (req, res) => {
 app.get('/api/sessions', (req, res) => {
   try {
     const { project, limit = '20', offset = '0' } = req.query;
-    const sessions = listSessions({ project, limit: parseInt(limit), offset: parseInt(offset) });
+    const parsedLimit = Math.min(Math.max(parseInt(limit) || 20, 1), 200);
+    const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+    const sessions = listSessions({ project, limit: parsedLimit, offset: parsedOffset });
     res.json(sessions);
   } catch (err) {
     console.error('GET /api/sessions error:', err.message);
@@ -727,7 +730,9 @@ app.get('/api/sessions/:id', (req, res) => {
     const session = getSession(req.params.id);
     if (!session) return res.status(404).json({ error: 'Not found' });
     const { limit = '50', offset = '0' } = req.query;
-    const messages = getMessages(req.params.id, { limit: parseInt(limit), offset: parseInt(offset) });
+    const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+    const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+    const messages = getMessages(req.params.id, { limit: parsedLimit, offset: parsedOffset });
     res.json({ ...session, messages });
   } catch (err) {
     console.error('GET /api/sessions/:id error:', err.message);
@@ -738,9 +743,12 @@ app.get('/api/sessions/:id', (req, res) => {
 app.get('/api/sessions/:id/messages', (req, res) => {
   try {
     const { limit = '50', offset = '0' } = req.query;
-    const messages = getMessages(req.params.id, { limit: parseInt(limit), offset: parseInt(offset) });
+    const parsedLimit = Math.min(Math.max(parseInt(limit) || 50, 1), 200);
+    const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+    const messages = getMessages(req.params.id, { limit: parsedLimit, offset: parsedOffset });
     res.json(messages);
   } catch (err) {
+    console.error('GET /api/sessions/:id/messages error:', err.message);
     res.json([]);
   }
 });
