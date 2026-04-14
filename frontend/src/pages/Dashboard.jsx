@@ -73,10 +73,21 @@ export default function Dashboard() {
   const [showIdle, setShowIdle] = useState(false);
   const [idleSearch, setIdleSearch] = useState('');
 
-  const active  = projects.filter(p => projectStatuses[p.name]?.status === 'active');
-  const check   = projects.filter(p => projectStatuses[p.name]?.status === 'check');
+  // Hook status overrides watcher status for column placement (expires after 30 min)
+  const getEffectiveStatus = (p) => {
+    const h = hookStatuses[p.path];
+    if (h && (Date.now() - h.ts) < 30 * 60 * 1000) {
+      if (h.status === 'review') return 'check';
+      if (h.status === 'active') return 'active';
+      if (h.status === 'waiting') return 'check';
+    }
+    return projectStatuses[p.name]?.status || 'idle';
+  };
+
+  const active  = projects.filter(p => getEffectiveStatus(p) === 'active');
+  const check   = projects.filter(p => getEffectiveStatus(p) === 'check');
   const idle    = projects.filter(p => {
-    const s = projectStatuses[p.name]?.status;
+    const s = getEffectiveStatus(p);
     return s === 'idle' || s === 'error' || !s;
   });
 
