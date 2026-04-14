@@ -110,6 +110,7 @@ export default function ProjectCard({ project, status, hookStatus }) {
   const [isMarking, setIsMarking] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [markError, setMarkError] = useState(null);
+  const [resetError, setResetError] = useState(null);
   const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
   const [terminalError, setTerminalError] = useState(null);
   const [isExcluding, setIsExcluding] = useState(false);
@@ -141,11 +142,16 @@ export default function ProjectCard({ project, status, hookStatus }) {
   const handleResetStatus = async () => {
     if (isResetting) return;
     setIsResetting(true);
+    setResetError(null);
     try {
-      await fetch(
+      const res = await fetch(
         `${API_BASE}/api/projects/${encodeURIComponent(project.name)}/reset-status`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' } }
       );
+      if (!res.ok) throw new Error('Errore');
+    } catch {
+      setResetError('Errore');
+      setTimeout(() => setResetError(null), 3000);
     } finally {
       setIsResetting(false);
     }
@@ -248,11 +254,19 @@ export default function ProjectCard({ project, status, hookStatus }) {
                   opacity: isResetting ? 0.4 : 0.7,
                   transition: 'opacity 0.15s, color 0.15s',
                 }}
-                onMouseEnter={e => { if (!isResetting) e.target.style.color = 'var(--text-bright)'; e.target.style.opacity = '1'; }}
+                onMouseEnter={e => { if (!isResetting) { e.target.style.color = 'var(--text-bright)'; e.target.style.opacity = '1'; } }}
                 onMouseLeave={e => { e.target.style.color = isResetting ? 'var(--text-muted)' : 'var(--text-secondary)'; e.target.style.opacity = isResetting ? '0.4' : '0.7'; }}
               >
                 {isResetting ? '…' : '↺'}
               </button>
+            )}
+            {resetError && (
+              <span style={{
+                fontFamily: 'JetBrains Mono, monospace',
+                fontSize: '0.55rem',
+                color: 'var(--red)',
+                marginLeft: 2
+              }}>{resetError}</span>
             )}
           </div>
         );
