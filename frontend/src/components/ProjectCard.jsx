@@ -108,6 +108,7 @@ export default function ProjectCard({ project, status, hookStatus }) {
   const [showHistory, setShowHistory] = useState(false);
   const [showSessions, setShowSessions] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [markError, setMarkError] = useState(null);
   const [isOpeningTerminal, setIsOpeningTerminal] = useState(false);
   const [terminalError, setTerminalError] = useState(null);
@@ -134,6 +135,19 @@ export default function ProjectCard({ project, status, hookStatus }) {
       setTimeout(() => setMarkError(null), 3000);
     } finally {
       setIsMarking(false);
+    }
+  };
+
+  const handleResetStatus = async () => {
+    if (isResetting) return;
+    setIsResetting(true);
+    try {
+      await fetch(
+        `${API_BASE}/api/projects/${encodeURIComponent(project.name)}/reset-status`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+      );
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -203,19 +217,44 @@ export default function ProjectCard({ project, status, hookStatus }) {
         if (ageMs > 30 * 60 * 1000) return null; // hide after 30 min
         const style = HOOK_STATUS_STYLE[hookStatus.status];
         if (!style) return null;
+        const showReset = hookStatus.status === 'active' || hookStatus.status === 'waiting';
         return (
-          <div style={{
-            fontFamily: 'JetBrains Mono, monospace',
-            fontSize: '0.6rem',
-            color: style.color,
-            border: `1px solid ${style.color}`,
-            borderRadius: 3,
-            padding: '2px 6px',
-            marginBottom: 6,
-            display: 'inline-block',
-            letterSpacing: '0.05em'
-          }}>
-            {style.label}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <div style={{
+              fontFamily: 'JetBrains Mono, monospace',
+              fontSize: '0.6rem',
+              color: style.color,
+              border: `1px solid ${style.color}`,
+              borderRadius: 3,
+              padding: '2px 6px',
+              display: 'inline-block',
+              letterSpacing: '0.05em'
+            }}>
+              {style.label}
+            </div>
+            {showReset && (
+              <button
+                onClick={handleResetStatus}
+                disabled={isResetting}
+                title="Forza reset stato (sessione terminata)"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: isResetting ? 'default' : 'pointer',
+                  color: isResetting ? 'var(--text-muted)' : 'var(--text-secondary)',
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: '0.7rem',
+                  padding: '0 2px',
+                  lineHeight: 1,
+                  opacity: isResetting ? 0.4 : 0.7,
+                  transition: 'opacity 0.15s, color 0.15s',
+                }}
+                onMouseEnter={e => { if (!isResetting) e.target.style.color = 'var(--text-bright)'; e.target.style.opacity = '1'; }}
+                onMouseLeave={e => { e.target.style.color = isResetting ? 'var(--text-muted)' : 'var(--text-secondary)'; e.target.style.opacity = isResetting ? '0.4' : '0.7'; }}
+              >
+                {isResetting ? '…' : '↺'}
+              </button>
+            )}
           </div>
         );
       })()}
