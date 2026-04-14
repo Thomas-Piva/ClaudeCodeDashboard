@@ -7,6 +7,7 @@ const RECONNECT_DELAY = 3000;
 export function useWebSocket() {
   const [projects, setProjects] = useState([]);
   const [projectStatuses, setProjectStatuses] = useState({});
+  const [hookStatuses, setHookStatuses] = useState({});
   const [connectionStatus, setConnectionStatus] = useState('connecting');
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
@@ -81,6 +82,15 @@ export function useWebSocket() {
               ...prev,
               [projectName]: message.data
             }));
+          } else if (message.type === 'hook_status') {
+            setHookStatuses(prev => ({
+              ...prev,
+              [message.projectPath]: {
+                status: message.status,
+                projectName: message.projectName,
+                ts: message.timestamp
+              }
+            }));
           }
         } catch (error) {
           console.error('❌ Errore parsing messaggio:', error);
@@ -125,5 +135,5 @@ export function useWebSocket() {
     };
   }, [connect]);
 
-  return { projects, projectStatuses, connectionStatus };
+  return { projects, projectStatuses, hookStatuses, connectionStatus };
 }
