@@ -143,7 +143,7 @@ git commit -m "chore: task 1 — hook script + settings.json hooks config"
 
 ```bash
 # backend/.env — never committed (already in .gitignore root *.env pattern)
-TELEGRAM_TOKEN=8725441191:AAGc9oSMECxnrXxoUDilnNLeqM-KlcgZP78
+TELEGRAM_TOKEN=<your-bot-token>
 TELEGRAM_CHAT_ID=181756177
 ```
 
