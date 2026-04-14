@@ -227,7 +227,6 @@ export default function ProjectCard({ project, status, hookStatus }) {
               border: `1px solid ${style.color}`,
               borderRadius: 3,
               padding: '2px 6px',
-              display: 'inline-block',
               letterSpacing: '0.05em'
             }}>
               {style.label}
