@@ -148,9 +148,12 @@ export default function ProjectCard({ project, status, hookStatus }) {
         `${API_BASE}/api/projects/${encodeURIComponent(project.name)}/reset-status`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' } }
       );
-      if (!res.ok) throw new Error('Errore');
-    } catch {
-      setResetError('Errore');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || 'Errore');
+      }
+    } catch (err) {
+      setResetError(err.message || 'Errore');
       setTimeout(() => setResetError(null), 3000);
     } finally {
       setIsResetting(false);
@@ -254,8 +257,8 @@ export default function ProjectCard({ project, status, hookStatus }) {
                   opacity: isResetting ? 0.4 : 0.7,
                   transition: 'opacity 0.15s, color 0.15s',
                 }}
-                onMouseEnter={e => { if (!isResetting) { e.target.style.color = 'var(--text-bright)'; e.target.style.opacity = '1'; } }}
-                onMouseLeave={e => { e.target.style.color = isResetting ? 'var(--text-muted)' : 'var(--text-secondary)'; e.target.style.opacity = isResetting ? '0.4' : '0.7'; }}
+                onMouseEnter={e => { if (!isResetting) { e.currentTarget.style.color = 'var(--text-bright)'; e.currentTarget.style.opacity = '1'; } }}
+                onMouseLeave={e => { e.currentTarget.style.color = isResetting ? 'var(--text-muted)' : 'var(--text-secondary)'; e.currentTarget.style.opacity = isResetting ? '0.4' : '0.7'; }}
               >
                 {isResetting ? '…' : '↺'}
               </button>

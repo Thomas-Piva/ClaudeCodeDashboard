@@ -212,11 +212,8 @@ app.post('/api/projects/:projectName/reset-status', (req, res) => {
   if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
   if (!project.path) return res.status(400).json({ error: 'Percorso progetto non configurato' });
 
-  const safeBase = path.resolve(project.path);
-  const statusPath = path.join(safeBase, '.claude', 'status.json');
-  if (!statusPath.startsWith(safeBase + path.sep)) {
-    return res.status(400).json({ error: 'Percorso non valido' });
-  }
+  // statusPath is fully server-controlled (no user input), so no traversal is possible
+  const statusPath = path.join(path.resolve(project.path), '.claude', 'status.json');
 
   const idleStatus = {
     status: 'idle',
