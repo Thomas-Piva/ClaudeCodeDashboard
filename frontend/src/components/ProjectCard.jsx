@@ -9,6 +9,12 @@ const STATUS_STYLE = {
   error:  { color: 'var(--red)',   bg: 'var(--red-dim)',   border: 'var(--red-border)',   label: 'ERRORE' },
 };
 
+const HOOK_STATUS_STYLE = {
+  active:  { color: '#00ff88', label: '⚡ HOOK ATTIVO' },
+  waiting: { color: '#ffcc00', label: '⏳ IN ATTESA' },
+  review:  { color: '#ff6b6b', label: '🔴 DA CONTROLLARE' },
+};
+
 function fmt(ts) {
   if (!ts) return '—';
   return new Date(ts).toLocaleString('it-IT', {
@@ -98,7 +104,7 @@ function WindowRow({ window: w }) {
   );
 }
 
-export default function ProjectCard({ project, status }) {
+export default function ProjectCard({ project, status, hookStatus }) {
   const [showHistory, setShowHistory] = useState(false);
   const [showSessions, setShowSessions] = useState(false);
   const [isMarking, setIsMarking] = useState(false);
@@ -189,6 +195,30 @@ export default function ProjectCard({ project, status }) {
 
   return (
     <div className={`project-card status-${statusKey}`}>
+
+      {/* Hook status badge */}
+      {(() => {
+        if (!hookStatus) return null;
+        const ageMs = Date.now() - hookStatus.ts;
+        if (ageMs > 30 * 60 * 1000) return null; // hide after 30 min
+        const style = HOOK_STATUS_STYLE[hookStatus.status];
+        if (!style) return null;
+        return (
+          <div style={{
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: '0.6rem',
+            color: style.color,
+            border: `1px solid ${style.color}`,
+            borderRadius: 3,
+            padding: '2px 6px',
+            marginBottom: 6,
+            display: 'inline-block',
+            letterSpacing: '0.05em'
+          }}>
+            {style.label}
+          </div>
+        );
+      })()}
 
       {/* ── Header: name + CMD + badge ──────────────────── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7, marginBottom: 7 }}>

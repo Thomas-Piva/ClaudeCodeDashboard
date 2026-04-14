@@ -67,7 +67,7 @@ function EmptySlot({ text }) {
 }
 
 export default function Dashboard() {
-  const { projects, projectStatuses, connectionStatus } = useWebSocket();
+  const { projects, projectStatuses, hookStatuses, connectionStatus } = useWebSocket();
   const conn = CONN[connectionStatus] || CONN.disconnected;
   const [showAdmin, setShowAdmin] = useState(false);
   const [showIdle, setShowIdle] = useState(false);
@@ -247,7 +247,7 @@ export default function Dashboard() {
             />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
               {active.map(p => (
-                <ProjectCard key={p.name} project={p} status={projectStatuses[p.name]} />
+                <ProjectCard key={p.name} project={p} status={projectStatuses[p.name]} hookStatus={hookStatuses[p.path]} />
               ))}
               {active.length === 0 && <EmptySlot text="// nessuno attivo" />}
             </div>
@@ -265,7 +265,7 @@ export default function Dashboard() {
             />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
               {check.map(p => (
-                <ProjectCard key={p.name} project={p} status={projectStatuses[p.name]} />
+                <ProjectCard key={p.name} project={p} status={projectStatuses[p.name]} hookStatus={hookStatuses[p.path]} />
               ))}
               {check.length === 0 && <EmptySlot text="// nessuno da controllare" />}
             </div>
@@ -303,7 +303,7 @@ export default function Dashboard() {
                 {idle
                   .filter(p => p.name.toLowerCase().includes(idleSearch.toLowerCase()))
                   .map(p => (
-                    <ProjectCard key={p.name} project={p} status={projectStatuses[p.name]} />
+                    <ProjectCard key={p.name} project={p} status={projectStatuses[p.name]} hookStatus={hookStatuses[p.path]} />
                   ))}
                 {idle.length === 0 && <EmptySlot text="// tutti attivi ✦" />}
                 {idle.length > 0 && idleSearch && !idle.some(p => p.name.toLowerCase().includes(idleSearch.toLowerCase())) && (
