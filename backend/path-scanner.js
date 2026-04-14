@@ -31,6 +31,7 @@ function pathToClaudeDirName(projectPath) {
     .replace(/:\\/g, '--')
     .replace(/\\/g, '-')
     .replace(/\//g, '-')
+    .replace(/\./g, '-')
     .replace(/\s+/g, '-')
     .replace(/^-/, '');
   // Claude Code sostituisce ogni byte non-ASCII con '-'
