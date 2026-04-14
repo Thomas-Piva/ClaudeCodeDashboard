@@ -190,6 +190,19 @@ app.post('/api/projects/:projectName/mark-checked', (req, res) => {
   if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
 
   projectWatcher.markAsChecked(projectName);
+
+  // Clear hook status so frontend moves card out of Da Controllare immediately
+  if (project.path) {
+    const wsMsg = JSON.stringify({
+      type: 'hook_status',
+      projectPath: project.path,
+      projectName,
+      status: 'idle',
+      timestamp: Date.now()
+    });
+    clients.forEach(c => { if (c.readyState === 1) c.send(wsMsg); });
+  }
+
   res.json({ success: true });
 });
 

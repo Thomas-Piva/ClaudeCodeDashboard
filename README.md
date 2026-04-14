@@ -4,14 +4,14 @@
 
 # Dashboard Claude Code
 
-**Monitoraggio in tempo reale + ricerca full-text + analytics per sessioni Claude Code**
+**Monitoraggio in tempo reale · Ricerca full-text · Analytics · Notifiche Telegram**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/react-18.2.0-blue)](https://reactjs.org/)
-[![Version](https://img.shields.io/badge/version-5.0.0-purple)](https://github.com/Attilio81/ClaudeCodeDashboard)
+[![Version](https://img.shields.io/badge/version-6.0.0-purple)](https://github.com/Attilio81/ClaudeCodeDashboard)
 
-*Monitora N sessioni Claude Code parallele, cerca nei messaggi passati, analizza i pattern di utilizzo*
+*Monitora N sessioni Claude Code parallele, cerca nei messaggi passati, analizza i pattern di utilizzo, ricevi notifiche push su Telegram*
 
 [Avvio Rapido](#-avvio-rapido) • [Funzionalità](#-funzionalità) • [Come Funziona](#-come-funziona) • [Scorciatoie](#-scorciatoie-tastiera) • [API](#-api-reference) • [Troubleshooting](#-troubleshooting)
 
@@ -28,9 +28,21 @@
 | **Scan Roots** | Configura cartelle radice — tutte le sottocartelle con sessioni Claude vengono monitorate automaticamente (profondità 2) |
 | **WebSocket live** | Aggiornamenti istantanei via WebSocket, riconnessione automatica ogni 3 secondi |
 | **Discovery dinamico** | Nuovi progetti rilevati automaticamente senza riavvio del server |
-| **Stato intelligente** | Attivo / Da Controllare / Inattivo / Errore in base al tipo di entry e ai timeout |
+| **Hook status push** | Stato aggiornato in tempo reale via Claude Code hooks — nessun polling, evento immediato |
+| **Stato intelligente** | Attivo / Da Controllare / Inattivo in base a hook events + file watcher con timeout |
 
-### Ricerca Full-Text — `Cmd+K`
+### Notifiche Telegram
+
+Il bot **ClaudeOps** invia notifiche push direttamente su Telegram:
+
+| Evento | Notifica |
+|--------|----------|
+| Sessione terminata (`Stop`) | `✅ <progetto> — sessione terminata` |
+| Errore Bash (`PostToolUse`, exit ≠ 0) | `💥 <progetto> — errore Bash (exit N)` + comando |
+
+Configurazione opzionale tramite `backend/.env` — nessuna dipendenza aggiuntiva (Node 18+ native fetch).
+
+### Ricerca Full-Text — `Ctrl+K`
 
 - Premi `Ctrl+K` / `Cmd+K` ovunque per aprire la barra di ricerca globale
 - Cerca in **tutti i messaggi** di tutte le sessioni indicizzate — istantaneo (SQLite FTS5)
@@ -58,7 +70,7 @@
 | **Apri CMD** | Apre cmd.exe nella directory del progetto con titolo `claude - <nome>` |
 | **Trova finestra** | Individua la tab di Windows Terminal della sessione tramite UIAutomation |
 | **Porta in primo piano ⬆** | Porta Windows Terminal in primo piano e seleziona la tab corretta |
-| **Segna controllato** | Marca un progetto "Da Controllare" come rivisto → torna a Inattivo |
+| **Segna controllato** | Marca un progetto "Da Controllare" come rivisto → torna a Inattivo (funziona anche da hook status) |
 
 ### Area Admin
 
@@ -70,6 +82,33 @@
 ---
 
 ## Come Funziona
+
+### Claude Code Hooks
+
+La dashboard si integra con il sistema di hooks di Claude Code a livello utente — gli hook si attivano per **tutti** i progetti Claude Code sulla macchina, non solo per questo.
+
+```
+~/.claude/settings.json          ← hook registrati a livello utente
+~/.claude/hooks/hook-event.sh    ← script che POST-a il payload al backend
+```
+
+Ad ogni evento (PreToolUse, PostToolUse, Stop, Notification), Claude Code esegue lo script che invia il payload JSON al backend su `POST /api/hook-event`.
+
+Il backend:
+1. Legge il campo `cwd` (path del progetto corrente)
+2. Risolve il nome progetto dalla configurazione
+3. Broadcasts via WebSocket il nuovo status ai client connessi
+4. Invia notifica Telegram se applicabile
+
+**Mappa eventi → stato:**
+
+| Hook event | Status dashboard | Colonna |
+|------------|-----------------|---------|
+| `PreToolUse` | `active` | Attivi |
+| `Notification` | `waiting` | Da Controllare |
+| `Stop` | `review` | Da Controllare |
+
+Lo stato hook ha priorità sul file watcher per 30 minuti. Dopo 30 minuti senza nuovi eventi, il watcher torna a fare da fonte di verità.
 
 ### Discovery: Scan Roots
 
@@ -103,88 +142,14 @@ C:\Progetti Pilota\MioProgetto  →  C--Progetti-Pilota-MioProgetto
 ```
 I caratteri non-ASCII vengono codificati come uno o più `-` in base ai byte UTF-8.
 
-### Rilevamento finestra terminale
-
-1. Legge `~/.claude/sessions/*.json` — contengono `{ pid, cwd, sessionId }`
-2. Risale la catena processi padre fino a Windows Terminal (max 6 livelli)
-3. UIAutomation (`System.Windows.Automation`) enumera le tab
-4. Il bottone ⬆ porta in primo piano via simulazione tasto ALT + `SelectionItemPattern`
-
 ### Stato intelligente
 
-| Stato | Colore | Condizione |
-|-------|--------|------------|
-| **Attivo** | Verde | Tool in esecuzione o < 5 min dall'ultimo tool result |
-| **Da Controllare** | Arancione | Completato da < 60 min |
-| **Inattivo** | Grigio | > 60 min di inattività o segnato manualmente |
-| **Errore** | Rosso | Impossibile leggere la sessione |
-
----
-
-## Scorciatoie Tastiera
-
-| Tasto | Dove | Azione |
-|-------|------|--------|
-| `Ctrl+K` / `Cmd+K` | Ovunque | Apri/chiudi ricerca globale |
-| `Esc` | Ovunque | Chiudi modal / torna indietro |
-| `↑` / `↓` | Ricerca | Naviga risultati |
-| `↵` | Ricerca | Apri sessione selezionata |
-| `j` / `k` | Session viewer | Messaggio successivo / precedente |
-| `o` | Session viewer | Inverti ordine messaggi (vecchi → recenti) |
-
----
-
-## Stack Tecnologico
-
-| Layer | Tecnologie |
-|-------|-----------|
-| **Backend** | Node.js >= 18, Express, ws, chokidar, better-sqlite3 (FTS5) |
-| **Frontend** | React 18.2, Vite 5, react-router-dom v7 |
-| **Database** | SQLite 3 con FTS5 (full-text search, WAL mode) |
-| **Font** | Syne (Google Fonts), JetBrains Mono |
-| **Piattaforma** | Windows — PowerShell + UIAutomation per rilevamento terminale |
-
----
-
-## Struttura Progetto
-
-```
-DashboardClaudeCode/
-├── backend/
-│   ├── server.js              # Express + WebSocket + API REST
-│   ├── claude-watcher.js      # Monitora sessioni Claude Code in tempo reale
-│   ├── db.js                  # SQLite layer (FTS5, schema, query helpers)
-│   ├── indexer.js             # Parser JSONL → SQLite FTS5
-│   ├── path-scanner.js        # Discovery da cartelle radice
-│   ├── scan-paths.json        # Cartelle radice da scansionare
-│   ├── excluded-paths.json    # Percorsi esclusi
-│   ├── agentsview.db          # Database SQLite (creato al primo avvio, .gitignore)
-│   └── package.json
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx                    # Router shell (BrowserRouter)
-│   │   ├── pages/
-│   │   │   ├── Dashboard.jsx          # Layout 3 colonne (Attivi/Check/Inattivi)
-│   │   │   ├── Session.jsx            # Viewer sessione + export HTML
-│   │   │   └── Analytics.jsx          # Heatmap + tool usage + breakdown
-│   │   ├── components/
-│   │   │   ├── ProjectCard.jsx        # Card progetto con azioni
-│   │   │   ├── SessionList.jsx        # Lista sessioni inline per card
-│   │   │   ├── SearchBar.jsx          # Modal ricerca Cmd+K
-│   │   │   └── AdminPanel.jsx         # Pannello configurazione
-│   │   ├── hooks/
-│   │   │   └── useWebSocket.js        # Hook WebSocket + riconnessione
-│   │   └── index.css                  # Variabili CSS + animazioni
-│   ├── index.html
-│   └── package.json
-├── docs/
-│   └── superpowers/
-│       ├── specs/                     # Design document
-│       └── plans/                     # Implementation plan
-├── start.bat                  # Avvio rapido Windows
-├── package.json
-└── README.md
-```
+| Stato | Colore | Sorgente | Condizione |
+|-------|--------|----------|------------|
+| **Attivo** | Verde | Hook / Watcher | Hook `PreToolUse` — oppure — tool in esecuzione o < 5 min dall'ultimo tool result |
+| **Da Controllare** | Arancione | Hook / Watcher | Hook `Stop` o `Notification` — oppure — completato da < 60 min |
+| **Inattivo** | Grigio | Watcher | > 60 min di inattività, segnato manualmente, o hook status scaduto |
+| **Errore** | Rosso | Watcher | Impossibile leggere la sessione |
 
 ---
 
@@ -211,7 +176,11 @@ npm install
 cd backend && npm install
 cd ../frontend && npm install && cd ..
 
-# 3. Avvia
+# 3. (Opzionale) Configura Telegram
+cp backend/.env.example backend/.env
+# Modifica backend/.env con token e chat ID del tuo bot
+
+# 4. Avvia
 npm run dev
 # oppure su Windows: doppio click su start.bat
 ```
@@ -219,6 +188,51 @@ npm run dev
 Apri `http://localhost:5173`
 
 Al primo avvio, il backend indicizza automaticamente tutte le sessioni esistenti in `~/.claude/projects/`.
+
+### Installazione Hooks
+
+Per abilitare lo stato in tempo reale e le notifiche Telegram, installa gli hook a livello utente:
+
+**1. Crea lo script hook:**
+
+```bash
+# Crea la cartella se non esiste
+mkdir -p ~/.claude/hooks
+
+# Crea lo script (sostituisci il percorso con il tuo username)
+cat > ~/.claude/hooks/hook-event.sh << 'EOF'
+#!/bin/bash
+INPUT=$(cat)
+curl -s -X POST "http://localhost:3001/api/hook-event" \
+  -H "Content-Type: application/json" \
+  -d "$INPUT" > /dev/null 2>&1 || true
+EOF
+
+chmod +x ~/.claude/hooks/hook-event.sh
+```
+
+**2. Registra gli hook in `~/.claude/settings.json`:**
+
+```json
+{
+  "hooks": {
+    "Stop": [
+      { "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }
+    ],
+    "PreToolUse": [
+      { "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }
+    ],
+    "PostToolUse": [
+      { "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }
+    ],
+    "Notification": [
+      { "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }
+    ]
+  }
+}
+```
+
+> Sostituisci `<username>` con il tuo nome utente Windows.
 
 ---
 
@@ -240,6 +254,20 @@ Puoi anche usare l'**Area Admin** nell'interfaccia per aggiungere o rimuovere pe
 
 Popolato automaticamente con il bottone **⊗** su ogni card. Per ripristinare: Admin → sezione "Percorsi esclusi".
 
+### Notifiche Telegram (`backend/.env`)
+
+```env
+TELEGRAM_TOKEN=<token-del-bot>
+TELEGRAM_CHAT_ID=<chat-id>
+```
+
+Come ottenere i valori:
+1. Crea un bot con [@BotFather](https://t.me/BotFather) → ottieni `TELEGRAM_TOKEN`
+2. Invia `/start` al bot dalla chat dove vuoi ricevere le notifiche
+3. Visita `https://api.telegram.org/bot<TOKEN>/getUpdates` per leggere il `chat.id`
+
+Se `.env` non è presente o le variabili sono vuote, le notifiche Telegram vengono silenziosamente disabilitate — il resto della dashboard funziona normalmente.
+
 ### Fallback: `backend/config.json`
 
 Se `scan-paths.json` è vuoto, il server usa `config.json` con lista manuale:
@@ -250,6 +278,73 @@ Se `scan-paths.json` è vuoto, il server usa `config.json` con lista manuale:
     { "name": "MioProgetto", "path": "C:\\Progetti\\MioProgetto" }
   ]
 }
+```
+
+---
+
+## Scorciatoie Tastiera
+
+| Tasto | Dove | Azione |
+|-------|------|--------|
+| `Ctrl+K` / `Cmd+K` | Ovunque | Apri/chiudi ricerca globale |
+| `Esc` | Ovunque | Chiudi modal / torna indietro |
+| `↑` / `↓` | Ricerca | Naviga risultati |
+| `↵` | Ricerca | Apri sessione selezionata |
+| `j` / `k` | Session viewer | Messaggio successivo / precedente |
+| `o` | Session viewer | Inverti ordine messaggi (vecchi → recenti) |
+
+---
+
+## Stack Tecnologico
+
+| Layer | Tecnologie |
+|-------|-----------|
+| **Backend** | Node.js >= 18, Express, ws, chokidar, better-sqlite3 (FTS5) |
+| **Frontend** | React 18.2, Vite 5, react-router-dom v7 |
+| **Database** | SQLite 3 con FTS5 (full-text search, WAL mode) |
+| **Notifiche** | Telegram Bot API (native fetch — nessuna dipendenza aggiuntiva) |
+| **Font** | Syne (Google Fonts), JetBrains Mono |
+| **Piattaforma** | Windows — PowerShell + UIAutomation per rilevamento terminale |
+
+---
+
+## Struttura Progetto
+
+```
+DashboardClaudeCode/
+├── backend/
+│   ├── server.js              # Express + WebSocket + API REST + /api/hook-event
+│   ├── claude-watcher.js      # Monitora sessioni Claude Code in tempo reale
+│   ├── telegram.js            # Helper Telegram Bot API (native fetch)
+│   ├── db.js                  # SQLite layer (FTS5, schema, query helpers)
+│   ├── indexer.js             # Parser JSONL → SQLite FTS5
+│   ├── path-scanner.js        # Discovery da cartelle radice
+│   ├── scan-paths.json        # Cartelle radice da scansionare
+│   ├── excluded-paths.json    # Percorsi esclusi
+│   ├── .env                   # Credenziali Telegram (gitignored)
+│   ├── .env.example           # Template variabili d'ambiente
+│   ├── agentsview.db          # Database SQLite (creato al primo avvio, gitignored)
+│   └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx                    # Router shell (BrowserRouter)
+│   │   ├── pages/
+│   │   │   ├── Dashboard.jsx          # Layout 3 colonne (Attivi/Check/Inattivi)
+│   │   │   ├── Session.jsx            # Viewer sessione + export HTML
+│   │   │   └── Analytics.jsx          # Heatmap + tool usage + breakdown
+│   │   ├── components/
+│   │   │   ├── ProjectCard.jsx        # Card progetto con azioni + hook badge
+│   │   │   ├── SessionList.jsx        # Lista sessioni inline per card
+│   │   │   ├── SearchBar.jsx          # Modal ricerca Cmd+K
+│   │   │   └── AdminPanel.jsx         # Pannello configurazione
+│   │   ├── hooks/
+│   │   │   └── useWebSocket.js        # Hook WebSocket + hookStatuses state
+│   │   └── index.css                  # Variabili CSS + animazioni
+│   ├── index.html
+│   └── package.json
+├── start.bat                  # Avvio rapido Windows
+├── package.json
+└── README.md
 ```
 
 ---
@@ -279,6 +374,17 @@ Se `scan-paths.json` è vuoto, il server usa `config.json` con lista manuale:
 }
 ```
 
+**Hook status update** (ad ogni evento hook da Claude Code):
+```json
+{
+  "type": "hook_status",
+  "projectPath": "C:\\Progetti Pilota\\MioProgetto",
+  "projectName": "MioProgetto",
+  "status": "active|waiting|review|idle",
+  "timestamp": 1713000000000
+}
+```
+
 ### REST API
 
 #### Progetti
@@ -287,11 +393,28 @@ Se `scan-paths.json` è vuoto, il server usa `config.json` con lista manuale:
 |--------|----------|-------------|
 | `GET` | `/api/health` | Stato server |
 | `GET` | `/api/projects` | Lista progetti monitorati |
-| `POST` | `/api/projects/:name/mark-checked` | Segna come controllato |
+| `POST` | `/api/projects/:name/mark-checked` | Segna come controllato + cancella hook status |
 | `POST` | `/api/projects/:name/exclude` | Escludi dal monitoraggio |
 | `POST` | `/api/projects/:name/open-terminal` | Apri CMD nella directory |
 | `GET` | `/api/projects/:name/terminal-windows` | Trova le tab del terminale |
 | `POST` | `/api/focus-window/:pid` | Porta finestra in primo piano |
+
+#### Hook Events
+
+| Metodo | Endpoint | Descrizione |
+|--------|----------|-------------|
+| `POST` | `/api/hook-event` | Riceve eventi da Claude Code hooks, aggiorna WS + Telegram |
+
+Payload atteso (inviato automaticamente dallo script hook):
+```json
+{
+  "hook_event_name": "Stop|PreToolUse|PostToolUse|Notification",
+  "cwd": "C:\\Progetti Pilota\\MioProgetto",
+  "tool_name": "Bash",
+  "tool_input": { "command": "npm test" },
+  "tool_response": { "exit_code": 1, "output": "..." }
+}
+```
 
 #### Sessioni & Ricerca
 
@@ -348,6 +471,32 @@ Se esiste ma non appare, controlla che il percorso sia in `scan-paths.json` e fa
 </details>
 
 <details>
+<summary><b>Notifiche Telegram non arrivano</b></summary>
+
+1. Verifica che `backend/.env` esista con `TELEGRAM_TOKEN` e `TELEGRAM_CHAT_ID` valorizzati
+2. Assicurati di aver inviato `/start` al bot prima di aspettare notifiche
+3. Controlla che il backend sia avviato con `node --env-file=.env server.js` (o via `npm run dev`)
+4. Guarda i log del backend — errori API Telegram vengono stampati come `[telegram] API error: ...`
+
+Per verificare il chat ID:
+```
+https://api.telegram.org/bot<TOKEN>/getUpdates
+```
+
+</details>
+
+<details>
+<summary><b>Hook status non aggiorna la dashboard</b></summary>
+
+1. Verifica che `~/.claude/settings.json` contenga la sezione `hooks` con i 4 eventi
+2. Verifica che lo script `~/.claude/hooks/hook-event.sh` esista e sia eseguibile (`chmod +x`)
+3. Verifica che il percorso nello script usi slash forward (`/c/Users/...`) non backslash
+4. Apri `http://localhost:3001/api/health` — se non risponde, il backend non è in esecuzione
+5. Controlla che il backend sia sulla porta 3001 (quella configurata nello script hook)
+
+</details>
+
+<details>
 <summary><b>Ricerca non trova risultati attesi</b></summary>
 
 Il database SQLite si popola all'avvio e ad ogni modifica delle sessioni. Se hai sessioni vecchie non ancora indicizzate, riavvia il server — la catch-up indexing le indicizza automaticamente.
@@ -385,6 +534,18 @@ Il client si riconnette ogni 3 secondi automaticamente. Se il problema persiste,
 
 ## Changelog
 
+### v6.0.0 (2026-04-14) — Claude Code Hooks + Telegram Integration
+
+- **Hook status in tempo reale**: stato dei progetti aggiornato via push al 100% — nessun polling, evento immediato appena Claude Code inizia/finisce uno strumento
+- **Notifiche Telegram**: bot ClaudeOps invia `✅ sessione terminata` e `💥 errore Bash (exit N)` con nome progetto e comando
+- **Colonne guidate da hook**: `PreToolUse` → Attivi, `Stop`/`Notification` → Da Controllare — priorità su file watcher per 30 minuti
+- **Badge hook su ProjectCard**: indicatore visivo dello stato hook corrente (⚡ HOOK ATTIVO / ⏳ IN ATTESA / 🔴 DA CONTROLLARE)
+- **Bottone "Segna controllato" anche da hook**: funziona quando il progetto è in Da Controllare tramite hook Stop, non solo via watcher
+- **Mark-checked cancella hook status**: cliccando il bottone, la card esce immediatamente da Da Controllare senza aspettare 30 minuti
+- **Hook a livello utente**: hook registrati in `~/.claude/settings.json` — si attivano per tutti i progetti Claude Code sulla macchina
+- **`backend/telegram.js`**: helper con native fetch (Node 18+) — zero dipendenze aggiuntive
+- **`backend/.env`**: credenziali Telegram separate dal codice, caricate con `node --env-file=.env`
+
 ### v5.0.0 (2026-04-13) — agentsview Integration: Search + Analytics + Session Viewer
 
 - **Ricerca full-text `Ctrl+K`**: cerca in tutti i messaggi di tutte le sessioni — SQLite FTS5 con snippet evidenziato, navigazione tastiera (↑↓ / ↵ / Esc)
@@ -397,12 +558,12 @@ Il client si riconnette ogni 3 secondi automaticamente. Se il problema persiste,
 - **Nav pills** floating: DASHBOARD / ANALYTICS / CERCA sempre accessibili
 
 ### v4.5.0 (2026-04-02) — Bugfix Batch
-- **Fix path discovery**: codifica corretta caratteri non-ASCII (à, è, ecc.) su 2+ byte UTF-8
-- **Fix config URL**: parametro `?v=` per evitare cache browser sul config
-- **Fix PIDs cleanup**: pulizia automatica `terminal-pids.json` dei processi terminati
-- **Fix tail read**: lettura corretta degli ultimi byte dei file JSONL
-- **Fix inline confirm**: conferma esclusione visibile nel modal
-- **Rate limit** su Riscansiona: debounce 2 secondi
+- Fix path discovery: codifica corretta caratteri non-ASCII (à, è, ecc.) su 2+ byte UTF-8
+- Fix config URL: parametro `?v=` per evitare cache browser sul config
+- Fix PIDs cleanup: pulizia automatica `terminal-pids.json` dei processi terminati
+- Fix tail read: lettura corretta degli ultimi byte dei file JSONL
+- Fix inline confirm: conferma esclusione visibile nel modal
+- Rate limit su Riscansiona: debounce 2 secondi
 
 ### v4.4.0 (2026-04-02) — Ricerca Inattivi + Fix Excluded Paths
 - Barra di ricerca nella colonna Inattivi — filtra card per nome in tempo reale

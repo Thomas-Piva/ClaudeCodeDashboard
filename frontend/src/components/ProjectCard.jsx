@@ -433,7 +433,7 @@ export default function ProjectCard({ project, status, hookStatus }) {
       </div>
 
       {/* ── Mark Checked ────────────────────────────────── */}
-      {statusKey === 'check' && (
+      {(statusKey === 'check' || hookStatus?.status === 'review') && (
         <div style={{ marginTop: 12 }}>
           <button onClick={handleMarkAsChecked} disabled={isMarking} className="btn-check">
             {isMarking
