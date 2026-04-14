@@ -12,6 +12,7 @@ import { ClaudeSessionWatcher } from './claude-watcher.js';
 import { discoverFromRoots, loadScanPaths, saveScanPaths } from './path-scanner.js';
 import { listSessions, getSession, getMessages, searchMessages, getAnalytics } from './db.js';
 import { indexSession } from './indexer.js';
+import { sendTelegram } from './telegram.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -828,6 +829,63 @@ app.get('/api/analytics', (req, res) => {
     console.error('Analytics error:', err.message);
     res.json({ heatmap: [], toolUsage: [], projectBreakdown: [] });
   }
+});
+
+// ── REST: Hook Events ────────────────────────────────
+app.post('/api/hook-event', async (req, res) => {
+  const body = req.body;
+  if (!body || typeof body.hook_event_name !== 'string') {
+    return res.status(400).json({ error: 'missing hook_event_name' });
+  }
+
+  const { hook_event_name, project_path = '', tool_name, tool_response, message } = body;
+
+  // Derive project name: match against known projects, fallback to basename
+  const projectName = (() => {
+    const match = config.projects.find(p =>
+      p.path && (p.path === project_path || path.basename(p.path) === path.basename(project_path))
+    );
+    return match?.name ?? path.basename(project_path) ?? 'Unknown';
+  })();
+
+  // Map hook event → status
+  const statusMap = {
+    PreToolUse: 'active',
+    Notification: 'waiting',
+    Stop: 'review'
+  };
+  const hookStatus = statusMap[hook_event_name];
+
+  // Broadcast hook_status for PreToolUse, Notification, Stop
+  if (hookStatus) {
+    const wsMsg = JSON.stringify({
+      type: 'hook_status',
+      projectPath: project_path,
+      projectName,
+      status: hookStatus,
+      timestamp: Date.now()
+    });
+    clients.forEach(c => { if (c.readyState === 1) c.send(wsMsg); });
+  }
+
+  // Telegram: notify on Stop
+  if (hook_event_name === 'Stop') {
+    await sendTelegram(`✅ <b>${projectName}</b> — sessione terminata`);
+  }
+
+  // Telegram: notify on Bash error (PostToolUse, exit_code !== 0)
+  if (
+    hook_event_name === 'PostToolUse' &&
+    tool_name === 'Bash' &&
+    tool_response?.exit_code !== undefined &&
+    tool_response.exit_code !== 0
+  ) {
+    const cmd = body.tool_input?.command ?? '(sconosciuto)';
+    const short = cmd.length > 80 ? cmd.slice(0, 80) + '…' : cmd;
+    await sendTelegram(`💥 <b>${projectName}</b> — errore Bash (exit ${tool_response.exit_code})\n<code>${short}</code>`);
+  }
+
+  res.json({ ok: true });
 });
 
 // ── Avvio ────────────────────────────────────────────────────
