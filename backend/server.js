@@ -839,7 +839,9 @@ app.post('/api/hook-event', async (req, res) => {
       return res.status(400).json({ error: 'missing hook_event_name' });
     }
 
-    const { hook_event_name, project_path = '', tool_name, tool_response } = body;
+    const { hook_event_name, tool_name, tool_response } = body;
+    // Claude Code sends 'cwd' (not 'project_path') — support both
+    const project_path = body.cwd || body.project_path || '';
 
     // Derive project name: match against known projects, fallback to basename
     const projectName = (() => {
