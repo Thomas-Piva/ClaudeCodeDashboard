@@ -210,33 +210,35 @@ app.post('/api/projects/:projectName/reset-status', (req, res) => {
   const { projectName } = req.params;
   const project = config.projects.find(p => p.name === projectName);
   if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
+  if (!project.path) return res.status(400).json({ error: 'Percorso progetto non configurato' });
 
-  // Reset status.json so watcher broadcasts idle to new/reconnected clients
-  if (project.path) {
-    const statusPath = path.join(project.path, '.claude', 'status.json');
-    const idleStatus = {
-      status: 'idle',
-      lastUpdate: new Date().toISOString(),
-      lastOutput: 'Sessione terminata (reset manuale)',
-      project: projectName
-    };
-    try {
-      fs.writeFileSync(statusPath, JSON.stringify(idleStatus, null, 2));
-    } catch (err) {
-      console.error(`[reset-status] Errore scrittura status.json per ${projectName}:`, err.message);
-      // Non-fatal: proceed with WS broadcast anyway
-    }
-
-    // Broadcast hook_status: idle to all connected clients
-    const wsMsg = JSON.stringify({
-      type: 'hook_status',
-      projectPath: project.path,
-      projectName,
-      status: 'idle',
-      timestamp: Date.now()
-    });
-    clients.forEach(c => { if (c.readyState === 1) c.send(wsMsg); });
+  const safeBase = path.resolve(project.path);
+  const statusPath = path.join(safeBase, '.claude', 'status.json');
+  if (!statusPath.startsWith(safeBase + path.sep)) {
+    return res.status(400).json({ error: 'Percorso non valido' });
   }
+
+  const idleStatus = {
+    status: 'idle',
+    lastUpdate: new Date().toISOString(),
+    lastOutput: 'Sessione terminata (reset manuale)',
+    project: projectName
+  };
+  try {
+    fs.writeFileSync(statusPath, JSON.stringify(idleStatus, null, 2));
+  } catch (err) {
+    console.error(`[reset-status] Errore scrittura status.json per ${projectName}:`, err.message);
+    // Non-fatal: proceed with WS broadcast anyway
+  }
+
+  const wsMsg = JSON.stringify({
+    type: 'hook_status',
+    projectPath: project.path,
+    projectName,
+    status: 'idle',
+    timestamp: Date.now()
+  });
+  clients.forEach(c => { if (c.readyState === 1) c.send(wsMsg); });
 
   res.json({ success: true });
 });
