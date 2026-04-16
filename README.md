@@ -136,11 +136,11 @@ Lo stato hook ha priorità sul file watcher per 30 minuti. Dopo 30 minuti senza 
 4. Include solo le cartelle con sessioni reali
 
 ```
-C:\Progetti Pilota\           ← cartella radice
-├── DashboardClaudeCode\      ← ha sessioni Claude → MONITORATA
-├── gestione-preattività\
-│   └── consultation-panel\  ← ha sessioni Claude (2 livelli) → MONITORATA
-└── Archivio\                 ← nessuna sessione → IGNORATA
+C:\Work\           ← cartella radice
+├── ProjectA\      ← ha sessioni Claude → MONITORATA
+├── ProjectB\
+│   └── module\   ← ha sessioni Claude (2 livelli) → MONITORATA
+└── Archive\       ← nessuna sessione → IGNORATA
 ```
 
 ### Indicizzazione SQLite
@@ -156,7 +156,7 @@ Al primo avvio e ad ogni modifica di un file sessione:
 
 Claude Code converte i path in nomi di directory:
 ```
-C:\Progetti Pilota\MioProgetto  →  C--Progetti-Pilota-MioProgetto
+C:\Work\MyProject  →  C--Work-MyProject
 ```
 I caratteri non-ASCII vengono codificati come uno o più `-` in base ai byte UTF-8.
 
@@ -260,9 +260,9 @@ chmod +x ~/.claude/hooks/hook-event.sh
 
 ```json
 [
-  "C:\\BIZ2017",
-  "C:\\Progetti Pilota",
-  "C:\\ProgettiEgm"
+  "C:\\Projects\\MyApp",
+  "C:\\Work\\Clients",
+  "C:\\Dev"
 ]
 ```
 
@@ -379,7 +379,7 @@ DashboardClaudeCode/
 
 **Config** (alla connessione e ad ogni aggiornamento lista):
 ```json
-{ "type": "config", "projects": [{ "name": "BNEGS076", "path": "C:\\..." }] }
+{ "type": "config", "projects": [{ "name": "MyProject", "path": "C:\\..." }] }
 ```
 
 **Status update** (ad ogni cambio sessione):
@@ -387,7 +387,7 @@ DashboardClaudeCode/
 {
   "type": "status",
   "data": {
-    "status": "active", "projectName": "BNEGS076",
+    "status": "active", "projectName": "MyProject",
     "lastUpdate": "2026-04-13T10:00:00Z", "lastOutput": "Bash: npm test",
     "slug": "sharded-wibbling-crab", "gitBranch": "main",
     "sessionId": "abc-123",
@@ -400,7 +400,7 @@ DashboardClaudeCode/
 ```json
 {
   "type": "hook_status",
-  "projectPath": "C:\\Progetti Pilota\\MioProgetto",
+  "projectPath": "C:\\Work\\MyProject",
   "projectName": "MioProgetto",
   "status": "active|waiting|review|idle",
   "timestamp": 1713000000000
@@ -431,7 +431,7 @@ Payload atteso (inviato automaticamente dallo script hook):
 ```json
 {
   "hook_event_name": "Stop|PreToolUse|PostToolUse|Notification",
-  "cwd": "C:\\Progetti Pilota\\MioProgetto",
+  "cwd": "C:\\Work\\MyProject",
   "tool_name": "Bash",
   "tool_input": { "command": "npm test" },
   "tool_response": { "exit_code": 1, "output": "..." }
