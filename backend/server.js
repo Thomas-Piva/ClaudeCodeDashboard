@@ -36,6 +36,20 @@ function runPsFile(script, timeoutMs, callback) {
 
 // ── File di persistenza ──────────────────────────────────────
 const EXCLUDED_PATHS_FILE = path.join(__dirname, 'excluded-paths.json');
+const WIKI_SETTINGS_FILE  = path.join(__dirname, 'wiki-settings.json');
+
+function loadWikiSettings() {
+  try {
+    if (fs.existsSync(WIKI_SETTINGS_FILE)) {
+      return JSON.parse(fs.readFileSync(WIKI_SETTINGS_FILE, 'utf-8'));
+    }
+  } catch {}
+  return { wikiPath: process.env.WIKI_PATH || 'C:\\EGM-Wiki' };
+}
+
+function saveWikiSettings(settings) {
+  fs.writeFileSync(WIKI_SETTINGS_FILE, JSON.stringify(settings, null, 2));
+}
 
 function loadExcludedPaths() {
   try {
@@ -757,6 +771,33 @@ app.delete('/api/admin/excluded-paths/:index', (req, res) => {
   paths.splice(idx, 1);
   saveExcludedPaths(paths);
   res.json({ success: true, paths });
+});
+
+// ── API: Admin - Wiki Settings ───────────────────────────────
+app.get('/api/admin/wiki-settings', (req, res) => {
+  res.json(loadWikiSettings());
+});
+
+app.post('/api/admin/wiki-settings', (req, res) => {
+  const { wikiPath } = req.body;
+  if (!wikiPath || typeof wikiPath !== 'string') {
+    return res.status(400).json({ error: 'wikiPath non valido' });
+  }
+  const settings = { ...loadWikiSettings(), wikiPath: wikiPath.trim() };
+  saveWikiSettings(settings);
+  res.json({ success: true, ...settings });
+});
+
+app.post('/api/admin/wiki-backfill', (req, res) => {
+  const { spawn } = require('child_process');
+  const backfillScript = path.join(__dirname, 'wiki-backfill.js');
+  const child = spawn(process.execPath, ['--env-file=.env', backfillScript], {
+    cwd: __dirname,
+    detached: true,
+    stdio: 'ignore',
+  });
+  child.unref();
+  res.json({ success: true, message: 'Backfill avviato in background' });
 });
 
 // ── REST: Sessions ───────────────────────────────────

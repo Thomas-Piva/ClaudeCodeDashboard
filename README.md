@@ -78,6 +78,24 @@ Configurazione opzionale tramite `backend/.env` — nessuna dipendenza aggiuntiv
 - Aggiungi / rimuovi cartelle radice di scansione
 - **Riscansiona Ora** — trova nuovi progetti senza riavviare il server
 - Ripristina percorsi esclusi
+- **Wiki EGM** — configura cartella Obsidian e lancia la generazione wiki
+
+### Wiki EGM (Knowledge Base automatica)
+
+La dashboard può generare una wiki Markdown navigabile con Obsidian dalle sessioni indicizzate:
+
+- **`backend/wiki-backfill.js`** — scansiona tutto il DB SQLite, raggruppa sessioni per progetto e chiama DeepSeek V3 per estrarre conoscenza tecnica in pagine Markdown
+- **`backend/wiki-ingest.js`** — modulo incrementale: si aggancia all'indexer e aggiorna la wiki ad ogni nuova sessione indicizzata
+
+Le pagine vengono scritte in una cartella configurabile (default `C:\EGM-Wiki`) compatibile con Obsidian (`[[wikilinks]]`, tabelle, blocchi codice).
+
+**Avvio backfill manuale:**
+
+```bash
+node --env-file=.env backend/wiki-backfill.js
+```
+
+Oppure dal pannello **Admin → Wiki EGM → GENERA WIKI DA SESSIONI**.
 
 ---
 
@@ -254,11 +272,12 @@ Puoi anche usare l'**Area Admin** nell'interfaccia per aggiungere o rimuovere pe
 
 Popolato automaticamente con il bottone **⊗** su ogni card. Per ripristinare: Admin → sezione "Percorsi esclusi".
 
-### Notifiche Telegram (`backend/.env`)
+### Notifiche Telegram + Wiki (`backend/.env`)
 
 ```env
 TELEGRAM_TOKEN=<token-del-bot>
 TELEGRAM_CHAT_ID=<chat-id>
+DEEPSEEK_API_KEY=<chiave-deepseek>   # Per generazione wiki (opzionale)
 ```
 
 Come ottenere i valori:
@@ -317,11 +336,14 @@ DashboardClaudeCode/
 │   ├── claude-watcher.js      # Monitora sessioni Claude Code in tempo reale
 │   ├── telegram.js            # Helper Telegram Bot API (native fetch)
 │   ├── db.js                  # SQLite layer (FTS5, schema, query helpers)
-│   ├── indexer.js             # Parser JSONL → SQLite FTS5
+│   ├── indexer.js             # Parser JSONL → SQLite FTS5 (+ hook wiki-ingest)
 │   ├── path-scanner.js        # Discovery da cartelle radice
+│   ├── wiki-backfill.js       # Genera wiki da tutte le sessioni (DeepSeek V3)
+│   ├── wiki-ingest.js         # Aggiornamento incrementale wiki per sessione
 │   ├── scan-paths.json        # Cartelle radice da scansionare
 │   ├── excluded-paths.json    # Percorsi esclusi
-│   ├── .env                   # Credenziali Telegram (gitignored)
+│   ├── wiki-settings.json     # Configurazione wiki (path cartella Obsidian)
+│   ├── .env                   # Credenziali Telegram + DeepSeek (gitignored)
 │   ├── .env.example           # Template variabili d'ambiente
 │   ├── agentsview.db          # Database SQLite (creato al primo avvio, gitignored)
 │   └── package.json
@@ -437,6 +459,9 @@ Payload atteso (inviato automaticamente dallo script hook):
 | `POST` | `/api/admin/rescan` | Riscansiona senza riavvio |
 | `GET` | `/api/admin/excluded-paths` | Lista percorsi esclusi |
 | `DELETE` | `/api/admin/excluded-paths/:index` | Ripristina percorso escluso |
+| `GET` | `/api/admin/wiki-settings` | Leggi impostazioni wiki (`wikiPath`) |
+| `POST` | `/api/admin/wiki-settings` | Salva `wikiPath` in `wiki-settings.json` |
+| `POST` | `/api/admin/wiki-backfill` | Avvia `wiki-backfill.js` in background |
 
 ---
 
@@ -533,6 +558,15 @@ Il client si riconnette ogni 3 secondi automaticamente. Se il problema persiste,
 ---
 
 ## Changelog
+
+### v7.0.0 (2026-04-16) — Wiki EGM: Knowledge Base automatica da sessioni
+
+- **`wiki-backfill.js`**: scansiona le 98+ sessioni NTS/EGM nel DB SQLite, chiama DeepSeek V3, genera pagine Markdown per ogni progetto in una cartella Obsidian configurabile
+- **`wiki-ingest.js`**: hook in `indexer.js` — aggiorna la wiki incrementalmente ad ogni sessione indicizzata (via `setImmediate`)
+- **Admin → Wiki EGM**: nuova sezione nel pannello admin per configurare `wikiPath` e lanciare il backfill con un click
+- **`wiki-settings.json`**: persistenza path wiki separata da `.env`
+- **DeepSeek V3**: output Markdown diretto (no JSON) — 10x più economico di Claude Haiku, immune a errori di escape su codice VB.NET
+- **API**: `GET/POST /api/admin/wiki-settings`, `POST /api/admin/wiki-backfill`
 
 ### v6.0.0 (2026-04-14) — Claude Code Hooks + Telegram Integration
 

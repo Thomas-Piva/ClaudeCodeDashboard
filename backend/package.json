@@ -13,10 +13,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.90.0",
     "better-sqlite3": "^12.9.0",
     "chokidar": "^3.5.3",
     "cors": "^2.8.5",
     "express": "^4.18.2",
+    "openai": "^6.34.0",
     "ws": "^8.16.0"
   }
 }

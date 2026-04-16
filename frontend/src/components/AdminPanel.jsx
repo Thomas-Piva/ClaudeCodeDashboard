@@ -51,15 +51,23 @@ export default function AdminPanel({ onClose }) {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [wikiPath, setWikiPath] = useState('');
+  const [wikiPathInput, setWikiPathInput] = useState('');
+  const [savingWiki, setSavingWiki] = useState(false);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState(null);
 
   const load = useCallback(async () => {
     try {
-      const [sp, ep] = await Promise.all([
+      const [sp, ep, ws] = await Promise.all([
         fetch(`${API}/scan-paths`).then(r => r.json()),
         fetch(`${API}/excluded-paths`).then(r => r.json()),
+        fetch(`${API}/wiki-settings`).then(r => r.json()),
       ]);
       setScanPaths(sp.paths || []);
       setExcludedPaths(ep.paths || []);
+      setWikiPath(ws.wikiPath || '');
+      setWikiPathInput(ws.wikiPath || '');
     } catch {}
     setLoading(false);
   }, []);
@@ -89,6 +97,33 @@ export default function AdminPanel({ onClose }) {
       const data = await res.json();
       setScanPaths(data.paths || []);
     } catch {}
+  };
+
+  const saveWikiPath = async () => {
+    setSavingWiki(true);
+    try {
+      const res = await fetch(`${API}/wiki-settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wikiPath: wikiPathInput }),
+      });
+      const data = await res.json();
+      if (data.success) setWikiPath(data.wikiPath);
+    } catch {}
+    setSavingWiki(false);
+  };
+
+  const runBackfill = async () => {
+    setBackfilling(true);
+    setBackfillResult(null);
+    try {
+      const res = await fetch(`${API}/wiki-backfill`, { method: 'POST' });
+      const data = await res.json();
+      setBackfillResult(data);
+    } catch {
+      setBackfillResult({ error: 'Errore avvio backfill' });
+    }
+    setBackfilling(false);
   };
 
   const deleteExcludedPath = async (index) => {
@@ -302,6 +337,72 @@ export default function AdminPanel({ onClose }) {
                       ? `✗ ${scanResult.error}`
                       : `✓ Trovati ${scanResult.found} progetti · ${scanResult.added} nuovi aggiunti · ${scanResult.total} totale`
                     }
+                  </div>
+                )}
+              </section>
+
+              {/* ── Wiki EGM ─────────────────────────── */}
+              <section>
+                <h3 style={{
+                  fontFamily: 'Syne, sans-serif', fontSize: '0.72rem', fontWeight: 700,
+                  color: 'var(--text-secondary)', letterSpacing: '0.12em',
+                  textTransform: 'uppercase', margin: '0 0 12px'
+                }}>
+                  Wiki EGM
+                </h3>
+                <p style={{
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem',
+                  color: 'var(--text-muted)', margin: '0 0 10px', lineHeight: 1.6
+                }}>
+                  Cartella Obsidian dove vengono generate le pagine wiki dalle sessioni.
+                </p>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                  <input
+                    value={wikiPathInput}
+                    onChange={e => setWikiPathInput(e.target.value)}
+                    placeholder="C:\EGM-Wiki"
+                    style={{
+                      flex: 1, background: 'var(--input-bg)', border: '1px solid var(--border)',
+                      borderRadius: 6, padding: '6px 10px', color: 'var(--text-primary)',
+                      fontFamily: 'JetBrains Mono, monospace', fontSize: '0.72rem',
+                    }}
+                  />
+                  <button
+                    onClick={saveWikiPath}
+                    disabled={savingWiki || wikiPathInput === wikiPath}
+                    style={{
+                      background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+                      borderRadius: 6, padding: '6px 14px', cursor: 'pointer',
+                      fontFamily: 'Syne, sans-serif', fontSize: '0.68rem', fontWeight: 700,
+                      color: 'var(--accent)', letterSpacing: '0.08em',
+                      opacity: (savingWiki || wikiPathInput === wikiPath) ? 0.5 : 1,
+                    }}
+                  >
+                    {savingWiki ? <span className="spin" /> : 'SALVA'}
+                  </button>
+                </div>
+                <button
+                  onClick={runBackfill}
+                  disabled={backfilling}
+                  style={{
+                    background: 'var(--green-dim)', border: '1px solid var(--green-border)',
+                    borderRadius: 6, padding: '7px 16px', cursor: 'pointer',
+                    fontFamily: 'Syne, sans-serif', fontSize: '0.68rem', fontWeight: 700,
+                    color: 'var(--green)', letterSpacing: '0.08em',
+                    opacity: backfilling ? 0.5 : 1,
+                  }}
+                >
+                  {backfilling ? 'AVVIO IN CORSO...' : '⚡ GENERA WIKI DA SESSIONI'}
+                </button>
+                {backfillResult && (
+                  <div style={{
+                    marginTop: 8, padding: '6px 10px',
+                    background: backfillResult.error ? 'var(--red-dim)' : 'var(--green-dim)',
+                    border: `1px solid ${backfillResult.error ? 'var(--red-border)' : 'var(--green-border)'}`,
+                    borderRadius: 6, fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem',
+                    color: backfillResult.error ? 'var(--red)' : 'var(--green)'
+                  }}>
+                    {backfillResult.error ? `✗ ${backfillResult.error}` : `✓ ${backfillResult.message}`}
                   </div>
                 )}
               </section>
