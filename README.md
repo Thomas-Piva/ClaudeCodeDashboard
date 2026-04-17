@@ -112,9 +112,19 @@ Tutta la struttura è parametrizzata in **`backend/wiki-settings.json`** — nes
 | `defaultCategory` | Categoria di fallback se nessun pattern combacia |
 | `sessionFilter` | Pattern per includere sessioni nel backfill |
 | `excludeFilter` | Pattern per escludere sessioni (es. observer, dashboard) |
-| `systemPrompt` | Prompt personalizzato per DeepSeek — adattabile al dominio |
+| `systemPrompt` | Prompt personalizzato per il modello — adattabile al dominio |
+| `provider` | Configurazione LLM: `baseURL`, `model`, `apiKeyEnv` |
 
-Tutto configurabile anche dall'**Admin → Wiki EGM** senza toccare codice.
+**Provider LLM supportati** (tutti OpenAI-compatibili):
+
+| Provider | `baseURL` | `model` | `apiKeyEnv` |
+|----------|-----------|---------|-------------|
+| DeepSeek V3 | `https://api.deepseek.com` | `deepseek-chat` | `DEEPSEEK_API_KEY` |
+| LM Studio | `http://localhost:1234/v1` | nome modello caricato | — |
+| OpenAI | `https://api.openai.com/v1` | `gpt-4o`, `gpt-4o-mini` | `OPENAI_API_KEY` |
+| Ollama | `http://localhost:11434/v1` | `llama3`, `mistral`, … | — |
+
+Dall'**Admin → Wiki EGM → Provider LLM**: preset con un click + campi manuali per URL server, modello e variabile env della key. Tutto senza toccare codice.
 
 **Avvio backfill manuale:**
 
@@ -590,9 +600,9 @@ Il client si riconnette ogni 3 secondi automaticamente. Se il problema persiste,
 
 - **`wiki-backfill.js`**: scansiona le sessioni nel DB SQLite, chiama DeepSeek V3, genera pagine Markdown per ogni progetto in una cartella Obsidian configurabile
 - **`wiki-ingest.js`**: hook in `indexer.js` — aggiorna la wiki incrementalmente ad ogni sessione indicizzata (via `setImmediate`)
-- **`wiki-settings.json`**: struttura wiki completamente parametrizzata — categorie, pattern di match, sessionFilter, excludeFilter, systemPrompt — adattabile a qualsiasi dominio senza modificare codice
-- **Admin → Wiki EGM**: sezione nel pannello admin per configurare wikiPath, categorie (add/delete con pattern), system prompt DeepSeek e lanciare il backfill con un click
-- **DeepSeek V3**: output Markdown diretto (no JSON) — ~10x più economico di Claude Haiku, immune a errori di escape su codice con virgolette
+- **`wiki-settings.json`**: struttura wiki completamente parametrizzata — categorie, pattern di match, sessionFilter, excludeFilter, systemPrompt, provider LLM — adattabile a qualsiasi dominio senza modificare codice
+- **Admin → Wiki EGM**: sezione nel pannello admin per configurare wikiPath, provider LLM (preset DeepSeek/LM Studio/OpenAI + campi manuali URL server/modello/env key), categorie e system prompt
+- **Provider LLM intercambiabile**: DeepSeek V3, LM Studio, OpenAI, Ollama — tutti OpenAI-compatibili, basta cambiare baseURL e model
 - **API**: `GET/POST /api/admin/wiki-settings`, `POST/DELETE /api/admin/wiki-settings/categories`, `POST /api/admin/wiki-backfill`
 
 ### v6.0.0 (2026-04-14) — Claude Code Hooks + Telegram Integration
