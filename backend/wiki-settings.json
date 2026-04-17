@@ -14,7 +14,7 @@
     {
       "name": "egm-pilots",
       "label": "Prototipi",
-      "match": ["ProgettiPilota"]
+      "match": ["ProgettiPilota", "Progetti-Pilota"]
     },
     {
       "name": "mcp-tools",
