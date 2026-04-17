@@ -56,15 +56,34 @@ function buildSessionText(messages) {
   return text.substring(0, MAX_CHARS);
 }
 
+const TEMPLATE_SIGNALS = [
+  'src/components/', 'npm run build', 'npm run test', 'React.FC<',
+  'jest', 'webpack', 'tree-shaking', 'TypeScript strict',
+  'useReducer', 'Context API', 'CSS Modules',
+];
+
+function isTemplateContent(markdown) {
+  return TEMPLATE_SIGNALS.filter(s => markdown.includes(s)).length >= 3;
+}
+
+function normalizeHeading(h) {
+  return h.replace(/^#+\s*/, '').toLowerCase().trim();
+}
+
 function writeWikiPage(wikiPath, category, topic, markdown) {
+  if (isTemplateContent(markdown)) return;
+
   const dir  = path.join(wikiPath, category);
   const file = path.join(dir, `${topic}.md`);
   fs.mkdirSync(dir, { recursive: true });
 
   if (fs.existsSync(file)) {
     const existing = fs.readFileSync(file, 'utf8');
+    const existingNorm = new Set(
+      (existing.match(/^#{2,3} .+/gm) || []).map(normalizeHeading)
+    );
     const newHeadings = (markdown.match(/^#{2,3} .+/gm) || [])
-      .filter(h => !existing.includes(h));
+      .filter(h => !existingNorm.has(normalizeHeading(h)));
     if (newHeadings.length === 0) return;
     const newSections = newHeadings.map(h => {
       const idx  = markdown.indexOf(h);

@@ -149,15 +149,39 @@ async function extractKnowledge(project, sessionTexts, systemPrompt, client, mod
   return markdown;
 }
 
+// ── Generic content fingerprints — skip pages that look like hallucinated templates ──
+const TEMPLATE_SIGNALS = [
+  'src/components/', 'npm run build', 'npm run test', 'React.FC<',
+  'jest', 'webpack', 'tree-shaking', 'TypeScript strict',
+  'useReducer', 'Context API', 'CSS Modules',
+];
+
+function isTemplateContent(markdown) {
+  const hits = TEMPLATE_SIGNALS.filter(s => markdown.includes(s));
+  return hits.length >= 3;
+}
+
+function normalizeHeading(h) {
+  return h.replace(/^#+\s*/, '').toLowerCase().trim();
+}
+
 // ── Write / merge wiki page ────────────────────────────────────────────────
 function writeWikiPage(wikiPath, category, topic, markdown) {
+  if (isTemplateContent(markdown)) {
+    console.log(`  ⚠ skipped (template content detected): ${topic}.md`);
+    return;
+  }
+
   const dir  = path.join(wikiPath, category);
   const file = path.join(dir, `${topic}.md`);
 
   if (fs.existsSync(file)) {
     const existing = fs.readFileSync(file, 'utf8');
+    const existingNorm = new Set(
+      (existing.match(/^#{2,3} .+/gm) || []).map(normalizeHeading)
+    );
     const newHeadings = (markdown.match(/^#{2,3} .+/gm) || [])
-      .filter(h => !existing.includes(h));
+      .filter(h => !existingNorm.has(normalizeHeading(h)));
     if (newHeadings.length === 0) {
       console.log(`  ↔ unchanged: ${topic}.md`);
       return;
