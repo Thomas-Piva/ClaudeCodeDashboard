@@ -146,7 +146,7 @@ node --env-file=.env backend/wiki-backfill.js
 
 Oppure dal pannello **Admin → Wiki EGM → GENERA WIKI DA SESSIONI**.
 
-**Ingestion incrementale**: automatica — `wiki-ingest.js` si aggancia all'indexer e aggiorna la wiki ad ogni nuova sessione.
+**Ingestion incrementale**: automatica — `wiki-ingest.js` si aggancia all'indexer e aggiorna la wiki ad ogni nuova sessione. Funziona anche se il terminale viene chiuso brutalmente: il watcher (`chokidar`) rileva la modifica del file `.jsonl` indipendentemente dall'hook `Stop`, quindi la sessione viene indicizzata e la wiki aggiornata comunque.
 
 ---
 
@@ -528,39 +528,38 @@ Windows blocca `SetForegroundWindow` dai processi in background. La dashboard us
 
 ## Changelog
 
-### v7.0.0 (2026-04-17) — Wiki EGM
+<small>
 
+**v7.0.0** (2026-04-17) — Wiki EGM
 - `wiki-backfill.js`: genera pagine Markdown da tutte le sessioni via LLM
-- `wiki-ingest.js`: aggiornamento incrementale ad ogni sessione indicizzata
+- `wiki-ingest.js`: aggiornamento incrementale, funziona anche con chiusura brutale del terminale
 - `wiki-settings.json`: parametrizzazione completa (categorie, filtri, prompt, provider LLM)
-- **Admin → Wiki EGM**: configurazione completa dall'interfaccia, preset provider con un click
+- Admin → Wiki EGM: configurazione dall'interfaccia, preset provider con un click
 - Provider intercambiabili: DeepSeek V3, LM Studio, OpenAI, Ollama
 
-### v6.0.0 (2026-04-14) — Claude Code Hooks + Telegram
-
+**v6.0.0** (2026-04-14) — Claude Code Hooks + Telegram
 - Hook status in tempo reale — nessun polling
 - Notifiche Telegram: `✅ sessione terminata` e `💥 errore Bash`
 - Colonne guidate da hook (priorità su file watcher per 30 min)
 - Badge hook su ProjectCard
 
-### v5.0.0 (2026-04-13) — Search + Analytics + Session Viewer
-
+**v5.0.0** (2026-04-13) — Search + Analytics + Session Viewer
 - Ricerca full-text `Ctrl+K` su tutte le sessioni (SQLite FTS5)
 - Session viewer con export HTML offline
 - Analytics: heatmap + tool usage + breakdown per progetto
 
-### v4.x (2026-04-02) — UIAutomation + Scan Roots
-
+**v4.x** (2026-04-02) — UIAutomation + Scan Roots
 - Discovery da cartelle radice configurabili
 - Trova finestra terminale via UIAutomation
 - Dark theme — Syne + JetBrains Mono
 - Fix path discovery, PID tracking, slug-based tab filtering
 
-### v1.0 – v3.0
-
+**v1.0 – v3.0**
 - v3.0: Auto-discovery dinamico, timeout intelligenti, storico sessione
 - v2.0: Parsing file `.jsonl` in tempo reale
 - v1.0: Monitoraggio via `status.json`, WebSocket + UI
+
+</small>
 
 ---
 
