@@ -491,18 +491,27 @@ export default function AdminPanel({ onClose }) {
                     ))}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 6 }}>
-                    <input value={wikiProvider.baseURL} onChange={e => setWikiProvider(p => ({ ...p, baseURL: e.target.value }))}
-                      placeholder="Base URL" style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem' }} />
-                    <input value={wikiProvider.model} onChange={e => setWikiProvider(p => ({ ...p, model: e.target.value }))}
-                      placeholder="model" style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem' }} />
-                    <input value={wikiProvider.apiKeyEnv} onChange={e => setWikiProvider(p => ({ ...p, apiKeyEnv: e.target.value }))}
-                      placeholder="API key env var" style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem' }} />
-                    <button onClick={saveProvider} disabled={savingProvider} style={{
-                      background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
-                      borderRadius: 6, padding: '5px 12px', cursor: 'pointer',
-                      fontFamily: 'Syne, sans-serif', fontSize: '0.68rem', fontWeight: 700,
-                      color: 'var(--accent)', opacity: savingProvider ? 0.5 : 1,
-                    }}>{savingProvider ? <span className="spin" /> : 'SALVA'}</button>
+                    {[
+                      { key: 'baseURL',   label: 'URL server',        placeholder: 'http://localhost:1234/v1' },
+                      { key: 'model',     label: 'Modello',           placeholder: 'deepseek-chat' },
+                      { key: 'apiKeyEnv', label: 'Env var API key',   placeholder: 'DEEPSEEK_API_KEY' },
+                    ].map(({ key, label, placeholder }) => (
+                      <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <span style={{ fontFamily: 'Syne, sans-serif', fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</span>
+                        <input value={wikiProvider[key] || ''} onChange={e => setWikiProvider(p => ({ ...p, [key]: e.target.value }))}
+                          placeholder={placeholder}
+                          style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem' }} />
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ fontSize: '0.6rem', color: 'transparent' }}>_</span>
+                      <button onClick={saveProvider} disabled={savingProvider} style={{
+                        background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+                        borderRadius: 6, padding: '5px 12px', cursor: 'pointer',
+                        fontFamily: 'Syne, sans-serif', fontSize: '0.68rem', fontWeight: 700,
+                        color: 'var(--accent)', opacity: savingProvider ? 0.5 : 1,
+                      }}>{savingProvider ? <span className="spin" /> : 'SALVA'}</button>
+                    </div>
                   </div>
                 </div>
 
