@@ -1,7 +1,7 @@
 /**
  * wiki-backfill.js
- * Processes NTS-related sessions from agentsview.db → generates wiki pages in C:\EGM-Wiki
- * Run: node wiki-backfill.js
+ * Generates wiki pages from all indexed sessions using wiki-settings.json
+ * Run: node --env-file=.env wiki-backfill.js
  */
 
 import Database from 'better-sqlite3';
@@ -9,37 +9,49 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 
-const DB_PATH = path.join(import.meta.dirname, 'agentsview.db');
-const WIKI_PATH = process.env.WIKI_PATH || 'C:\\EGM-Wiki';
-const MODEL   = 'deepseek-chat'; // DeepSeek V3 — ~10x cheaper than Haiku
-const MAX_TOKENS_PER_SESSION = 8000; // chars limit before truncating messages
-const SESSIONS_PER_TOPIC     = 5;    // how many sessions to batch per topic call
+const DB_PATH      = path.join(import.meta.dirname, 'agentsview.db');
+const SETTINGS_FILE = path.join(import.meta.dirname, 'wiki-settings.json');
+const MODEL        = 'deepseek-chat';
+const MAX_CHARS_PER_SESSION = 8000;
+const SESSIONS_PER_TOPIC    = 5;
 
 const client = new OpenAI({
   baseURL: 'https://api.deepseek.com',
   apiKey: process.env.DEEPSEEK_API_KEY,
 });
 
-// ── Directory structure ────────────────────────────────────────────────────
-const WIKI_DIRS = [
-  'nts-gestionale',
-  'egm-projects',
-  'egm-pilots',
-  'mcp-tools',
-];
-
-function ensureWikiDirs() {
-  for (const d of WIKI_DIRS) {
-    fs.mkdirSync(path.join(WIKI_PATH, d), { recursive: true });
+// ── Load settings ──────────────────────────────────────────────────────────
+function loadSettings() {
+  try {
+    return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+  } catch {
+    return {
+      wikiPath: process.env.WIKI_PATH || 'C:\\wiki',
+      categories: [],
+      defaultCategory: 'generale',
+      sessionFilter: [],
+      excludeFilter: [],
+    };
   }
 }
 
-// ── Project categorization ─────────────────────────────────────────────────
-function categorize(project) {
-  if (/BIZ2017|BUSEXP/i.test(project))    return 'nts-gestionale';
-  if (/ProgettiEgm/i.test(project))       return 'egm-projects';
-  if (/ProgettiPilota/i.test(project))    return 'egm-pilots';
-  return 'nts-gestionale'; // default for NTS sessions
+// ── Directory structure from settings ─────────────────────────────────────
+function ensureWikiDirs(settings) {
+  const dirs = settings.categories.map(c => c.name);
+  if (settings.defaultCategory) dirs.push(settings.defaultCategory);
+  for (const d of dirs) {
+    fs.mkdirSync(path.join(settings.wikiPath, d), { recursive: true });
+  }
+}
+
+// ── Categorize project using settings.categories ──────────────────────────
+function categorize(project, settings) {
+  for (const cat of settings.categories) {
+    if (cat.match.some(pattern => project.toLowerCase().includes(pattern.toLowerCase()))) {
+      return cat.name;
+    }
+  }
+  return settings.defaultCategory || 'generale';
 }
 
 function topicFromProject(project) {
@@ -47,91 +59,92 @@ function topicFromProject(project) {
   return base.replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
 }
 
-// ── DB queries ─────────────────────────────────────────────────────────────
-function getNTSSessions() {
+// ── DB query — built dynamically from settings.sessionFilter ──────────────
+function getSessions(settings) {
   const db = new Database(DB_PATH, { readonly: true });
-  const sessions = db.prepare(`
+
+  const includePatterns = settings.sessionFilter || [];
+  const excludePatterns = settings.excludeFilter || [];
+
+  const includeClauses = includePatterns.map(() => `s.project LIKE ?`).join('\n      OR ');
+  const excludeClauses = excludePatterns.map(() => `s.project NOT LIKE ?`).join('\n    AND ');
+
+  const whereInclude = includeClauses ? `(${includeClauses})` : '1=1';
+  const whereExclude = excludeClauses ? `AND ${excludeClauses}` : '';
+
+  const sql = `
     SELECT DISTINCT s.id, s.project, s.updated_at
     FROM sessions s
-    JOIN messages m ON m.session_id = s.id
-    WHERE (
-      m.content LIKE '%NTS Informatica%'
-      OR m.content LIKE '%business-erp%'
-      OR m.content LIKE '%mcp__business%'
-      OR m.content LIKE '%gestionale Business%'
-      OR m.content LIKE '%cerca_articoli%'
-      OR m.content LIKE '%cerca_clienti%'
-      OR m.content LIKE '%cerca_offerte%'
-      OR m.content LIKE '%apri_offerta%'
-      OR m.content LIKE '%crea_offerta%'
-      OR s.project LIKE '%BIZ2017%'
-      OR s.project LIKE '%BUSEXP%'
-      OR s.project LIKE '%GestionaleApi%'
-      OR s.project LIKE '%ControlloPadOrdini%'
-      OR s.project LIKE '%EsploraPreventivi%'
-      OR s.project LIKE '%AgenteVendite%'
-      OR s.project LIKE '%ProgettiEgm%'
-    )
-    AND s.project NOT LIKE '%observer%'
-    AND s.project NOT LIKE '%DashboardClaudeCode%'
+    WHERE ${whereInclude}
+    ${whereExclude}
     ORDER BY s.project, s.updated_at DESC
-  `).all();
+  `;
+
+  const includeArgs = includePatterns.map(p => `%${p}%`);
+  const excludeArgs = excludePatterns.map(p => `%${p}%`);
+
+  const sessions = db.prepare(sql).all(...includeArgs, ...excludeArgs);
   db.close();
   return sessions;
 }
 
 function getSessionMessages(sessionId) {
   const db = new Database(DB_PATH, { readonly: true });
-  const msgs = db.prepare(`
-    SELECT role, content FROM messages
-    WHERE session_id = ?
-    ORDER BY timestamp ASC
-  `).all(sessionId);
+  const msgs = db.prepare(
+    `SELECT role, content FROM messages WHERE session_id = ? ORDER BY timestamp ASC`
+  ).all(sessionId);
   db.close();
   return msgs;
 }
 
-// ── Build session text (truncated) ─────────────────────────────────────────
+// ── Build session text ─────────────────────────────────────────────────────
 function buildSessionText(messages) {
   let text = '';
   for (const m of messages) {
     const prefix = m.role === 'user' ? '>> USER:\n' : '>> ASSISTANT:\n';
-    const content = m.content.substring(0, 1500); // limit per message
-    text += prefix + content + '\n\n';
-    if (text.length > MAX_TOKENS_PER_SESSION) break;
+    text += prefix + (m.content || '').substring(0, 1500) + '\n\n';
+    if (text.length > MAX_CHARS_PER_SESSION) break;
   }
-  return text.substring(0, MAX_TOKENS_PER_SESSION);
+  return text.substring(0, MAX_CHARS_PER_SESSION);
 }
 
-// ── System prompt ─────────────────────────────────────────────────────────
-const SYSTEM_PROMPT = `Sei un agente di estrazione della conoscenza per EGM Sistemi.
-Analizza sessioni di lavoro con Claude Code relative al gestionale Business di NTS Informatica.
+// ── System prompt ──────────────────────────────────────────────────────────
+function buildSystemPrompt(settings) {
+  const categoryList = settings.categories
+    .map(c => `- **${c.name}** (${c.label}): progetti che contengono ${c.match.join(', ')}`)
+    .join('\n');
+
+  return `Sei un agente di estrazione della conoscenza tecnica.
+Analizza sessioni di lavoro con Claude Code ed estrai informazioni utili per sviluppatori.
 
 Rispondi SOLO con una pagina Markdown (niente JSON, niente spiegazioni).
 
-Formato obbligatorio — inizia SEMPRE con queste due righe:
-# <Titolo Leggibile del Modulo>
+Formato obbligatorio — inizia SEMPRE con:
+# <Titolo Leggibile del Modulo o Progetto>
 
-**Correlati:** [[architettura-biz2017]] | [[ui-patterns]]
+**Correlati:** [[link-correlato]] | [[altro-link]]
 
 Poi usa:
-- ## per sezioni principali
-- ### per sottosezioni
-- Tabelle Markdown per strutture DB
-- Blocchi \`\`\`vb o \`\`\`sql per codice
-- [[link]] per riferimenti a altri moduli
+- ## per sezioni principali, ### per sottosezioni
+- Tabelle Markdown per strutture DB o configurazioni
+- Blocchi di codice con linguaggio specificato (\`\`\`sql, \`\`\`vb, \`\`\`ts, ecc.)
+- [[link]] per riferimenti a altri moduli/pagine della wiki
 
 Estrai (se presenti nelle sessioni):
-1. Cosa fa il modulo (2-3 righe)
-2. Tabelle DB: nomi, colonne chiave, significato
+1. Cosa fa il modulo/progetto (2-3 righe)
+2. Strutture dati: tabelle DB, API, configurazioni chiave
 3. Business logic: regole, condizioni, workflow
-4. Pattern codice VB.NET ricorrenti
+4. Pattern codice ricorrenti o degni di nota
 5. Decisioni architetturali, workaround, gotcha
 
-Se le sessioni non contengono informazioni tecniche utili, rispondi con una pagina minimale.`;
+Categorie wiki configurate:
+${categoryList}
 
-// ── Call DeepSeek API — returns raw Markdown ──────────────────────────────
-async function extractKnowledge(project, sessionTexts) {
+Se le sessioni non contengono informazioni tecniche utili, rispondi con una pagina minimale.`;
+}
+
+// ── Call DeepSeek API ──────────────────────────────────────────────────────
+async function extractKnowledge(project, sessionTexts, systemPrompt) {
   const userContent = `Progetto: ${project}\n\n` +
     sessionTexts.map((t, i) => `--- SESSIONE ${i + 1} ---\n${t}`).join('\n\n');
 
@@ -139,7 +152,7 @@ async function extractKnowledge(project, sessionTexts) {
     model: MODEL,
     max_tokens: 4096,
     messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'system', content: systemPrompt },
       { role: 'user',   content: userContent },
     ],
   });
@@ -150,12 +163,11 @@ async function extractKnowledge(project, sessionTexts) {
 }
 
 // ── Write / merge wiki page ────────────────────────────────────────────────
-function writeWikiPage(category, topic, markdown) {
-  const dir  = path.join(WIKI_PATH, category);
+function writeWikiPage(wikiPath, category, topic, markdown) {
+  const dir  = path.join(wikiPath, category);
   const file = path.join(dir, `${topic}.md`);
 
   if (fs.existsSync(file)) {
-    // Extract headings already present to avoid duplication
     const existing = fs.readFileSync(file, 'utf8');
     const newHeadings = (markdown.match(/^#{2,3} .+/gm) || [])
       .filter(h => !existing.includes(h));
@@ -163,9 +175,8 @@ function writeWikiPage(category, topic, markdown) {
       console.log(`  ↔ unchanged: ${topic}.md`);
       return;
     }
-    // Append only new sections
     const newSections = newHeadings.map(h => {
-      const idx = markdown.indexOf(h);
+      const idx  = markdown.indexOf(h);
       const next = markdown.indexOf('\n## ', idx + 1);
       return markdown.slice(idx, next === -1 ? undefined : next).trim();
     }).join('\n\n');
@@ -189,34 +200,38 @@ function groupByProject(sessions) {
 
 // ── Main ───────────────────────────────────────────────────────────────────
 async function main() {
-  console.log('EGM Wiki Backfill');
-  console.log('=================');
-  console.log(`DB: ${DB_PATH}`);
-  console.log(`Wiki: ${WIKI_PATH}`);
-  console.log(`Model: ${MODEL}\n`);
+  const settings = loadSettings();
 
-  ensureWikiDirs();
+  console.log('Wiki Backfill');
+  console.log('=============');
+  console.log(`DB:         ${DB_PATH}`);
+  console.log(`Wiki:       ${settings.wikiPath}`);
+  console.log(`Model:      ${MODEL}`);
+  console.log(`Categories: ${settings.categories.map(c => c.name).join(', ')}`);
+  console.log(`Filter:     ${settings.sessionFilter.join(', ')}\n`);
 
-  const sessions = getNTSSessions();
-  console.log(`Found ${sessions.length} NTS sessions\n`);
+  ensureWikiDirs(settings);
+
+  const sessions = getSessions(settings);
+  console.log(`Found ${sessions.length} sessions\n`);
 
   const byProject = groupByProject(sessions);
   console.log(`Projects: ${byProject.size}\n`);
+
+  const systemPrompt = buildSystemPrompt(settings);
 
   let processed = 0;
   let errors    = 0;
 
   for (const [project, projectSessions] of byProject) {
-    const category = categorize(project);
+    const category = categorize(project, settings);
     const topic    = topicFromProject(project);
     console.log(`[${category}] ${project} (${projectSessions.length} sessions)`);
 
-    // Take max SESSIONS_PER_TOPIC most recent sessions
-    const toProcess = projectSessions.slice(0, SESSIONS_PER_TOPIC);
-    const sessionTexts = toProcess.map(s => {
-      const msgs = getSessionMessages(s.id);
-      return buildSessionText(msgs);
-    }).filter(t => t.length > 100);
+    const toProcess   = projectSessions.slice(0, SESSIONS_PER_TOPIC);
+    const sessionTexts = toProcess
+      .map(s => buildSessionText(getSessionMessages(s.id)))
+      .filter(t => t.length > 100);
 
     if (sessionTexts.length === 0) {
       console.log('  ⊘ no usable content, skip');
@@ -224,20 +239,19 @@ async function main() {
     }
 
     try {
-      const markdown = await extractKnowledge(project, sessionTexts);
-      writeWikiPage(category, topic, markdown);
+      const markdown = await extractKnowledge(project, sessionTexts, systemPrompt);
+      writeWikiPage(settings.wikiPath, category, topic, markdown);
       processed++;
     } catch (err) {
       console.error(`  ✗ error: ${err.message}`);
       errors++;
     }
 
-    // Small delay to respect rate limits
     await new Promise(r => setTimeout(r, 500));
   }
 
   console.log(`\n✓ Done. Processed: ${processed}, Errors: ${errors}`);
-  console.log(`Wiki at: ${WIKI_PATH}`);
+  console.log(`Wiki at: ${settings.wikiPath}`);
 }
 
 main().catch(err => {

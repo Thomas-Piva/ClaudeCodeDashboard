@@ -53,9 +53,12 @@ export default function AdminPanel({ onClose }) {
   const [loading, setLoading] = useState(true);
   const [wikiPath, setWikiPath] = useState('');
   const [wikiPathInput, setWikiPathInput] = useState('');
+  const [wikiCategories, setWikiCategories] = useState([]);
   const [savingWiki, setSavingWiki] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState(null);
+  const [newCat, setNewCat] = useState({ name: '', label: '', match: '' });
+  const [addingCat, setAddingCat] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -68,6 +71,7 @@ export default function AdminPanel({ onClose }) {
       setExcludedPaths(ep.paths || []);
       setWikiPath(ws.wikiPath || '');
       setWikiPathInput(ws.wikiPath || '');
+      setWikiCategories(ws.categories || []);
     } catch {}
     setLoading(false);
   }, []);
@@ -124,6 +128,30 @@ export default function AdminPanel({ onClose }) {
       setBackfillResult({ error: 'Errore avvio backfill' });
     }
     setBackfilling(false);
+  };
+
+  const addCategory = async () => {
+    const { name, label, match } = newCat;
+    if (!name.trim() || !label.trim() || !match.trim()) return;
+    setAddingCat(true);
+    try {
+      const res = await fetch(`${API}/wiki-settings/categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), label: label.trim(), match: match.split(',').map(s => s.trim()).filter(Boolean) }),
+      });
+      const data = await res.json();
+      if (data.categories) { setWikiCategories(data.categories); setNewCat({ name: '', label: '', match: '' }); }
+    } catch {}
+    setAddingCat(false);
+  };
+
+  const deleteCategory = async (name) => {
+    try {
+      const res = await fetch(`${API}/wiki-settings/categories/${encodeURIComponent(name)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.categories) setWikiCategories(data.categories);
+    } catch {}
   };
 
   const deleteExcludedPath = async (index) => {
@@ -405,6 +433,45 @@ export default function AdminPanel({ onClose }) {
                     {backfillResult.error ? `✗ ${backfillResult.error}` : `✓ ${backfillResult.message}`}
                   </div>
                 )}
+
+                {/* ── Categorie wiki ── */}
+                <div style={{ marginTop: 20 }}>
+                  <p style={{
+                    fontFamily: 'Syne, sans-serif', fontSize: '0.68rem', fontWeight: 700,
+                    color: 'var(--text-secondary)', letterSpacing: '0.1em',
+                    textTransform: 'uppercase', margin: '0 0 8px'
+                  }}>Categorie</p>
+                  {wikiCategories.map(cat => (
+                    <div key={cat.name} style={{
+                      display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6,
+                      padding: '5px 8px', background: 'var(--card-bg)',
+                      border: '1px solid var(--border)', borderRadius: 6,
+                    }}>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem', color: 'var(--accent)', minWidth: 110 }}>{cat.name}</span>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem', color: 'var(--text-muted)', flex: 1 }}>{cat.match.join(', ')}</span>
+                      <button onClick={() => deleteCategory(cat.name)} style={{
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: 'var(--text-muted)', fontSize: '0.75rem', padding: '2px 6px',
+                      }}>×</button>
+                    </div>
+                  ))}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr auto', gap: 6, marginTop: 8 }}>
+                    <input value={newCat.name} onChange={e => setNewCat(p => ({ ...p, name: e.target.value }))}
+                      placeholder="name (es. backend)" style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem' }} />
+                    <input value={newCat.label} onChange={e => setNewCat(p => ({ ...p, label: e.target.value }))}
+                      placeholder="label (es. Backend)" style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem' }} />
+                    <input value={newCat.match} onChange={e => setNewCat(p => ({ ...p, match: e.target.value }))}
+                      placeholder="pattern separati da virgola" style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem' }} />
+                    <button onClick={addCategory} disabled={addingCat} style={{
+                      background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+                      borderRadius: 6, padding: '5px 12px', cursor: 'pointer',
+                      fontFamily: 'Syne, sans-serif', fontSize: '0.68rem', fontWeight: 700,
+                      color: 'var(--accent)', opacity: addingCat ? 0.5 : 1,
+                    }}>
+                      {addingCat ? <span className="spin" /> : '+ AGGIUNGI'}
+                    </button>
+                  </div>
+                </div>
               </section>
 
               {/* ── Percorsi esclusi ──────────────────── */}

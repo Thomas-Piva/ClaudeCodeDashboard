@@ -779,13 +779,40 @@ app.get('/api/admin/wiki-settings', (req, res) => {
 });
 
 app.post('/api/admin/wiki-settings', (req, res) => {
-  const { wikiPath } = req.body;
-  if (!wikiPath || typeof wikiPath !== 'string') {
-    return res.status(400).json({ error: 'wikiPath non valido' });
+  const { wikiPath, categories, defaultCategory, sessionFilter, excludeFilter } = req.body;
+  const current = loadWikiSettings();
+  const updated = {
+    ...current,
+    ...(wikiPath         !== undefined && { wikiPath: wikiPath.trim() }),
+    ...(categories       !== undefined && { categories }),
+    ...(defaultCategory  !== undefined && { defaultCategory }),
+    ...(sessionFilter    !== undefined && { sessionFilter }),
+    ...(excludeFilter    !== undefined && { excludeFilter }),
+  };
+  saveWikiSettings(updated);
+  res.json({ success: true, ...updated });
+});
+
+// add / remove a single category
+app.post('/api/admin/wiki-settings/categories', (req, res) => {
+  const { name, label, match } = req.body;
+  if (!name || !label || !Array.isArray(match)) {
+    return res.status(400).json({ error: 'name, label, match[] richiesti' });
   }
-  const settings = { ...loadWikiSettings(), wikiPath: wikiPath.trim() };
+  const settings = loadWikiSettings();
+  if (settings.categories.some(c => c.name === name)) {
+    return res.status(400).json({ error: `Categoria "${name}" già esistente` });
+  }
+  settings.categories.push({ name, label, match });
   saveWikiSettings(settings);
-  res.json({ success: true, ...settings });
+  res.json({ success: true, categories: settings.categories });
+});
+
+app.delete('/api/admin/wiki-settings/categories/:name', (req, res) => {
+  const settings = loadWikiSettings();
+  settings.categories = settings.categories.filter(c => c.name !== req.params.name);
+  saveWikiSettings(settings);
+  res.json({ success: true, categories: settings.categories });
 });
 
 app.post('/api/admin/wiki-backfill', (req, res) => {

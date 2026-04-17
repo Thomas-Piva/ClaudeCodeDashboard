@@ -1,0 +1,28 @@
+{
+  "wikiPath": "C:\\EGM-Wiki",
+  "categories": [
+    {
+      "name": "nts-gestionale",
+      "label": "NTS Gestionale",
+      "match": ["BIZ2017", "BUSEXP"]
+    },
+    {
+      "name": "egm-projects",
+      "label": "Progetti EGM",
+      "match": ["ProgettiEgm"]
+    },
+    {
+      "name": "egm-pilots",
+      "label": "Prototipi",
+      "match": ["ProgettiPilota"]
+    },
+    {
+      "name": "mcp-tools",
+      "label": "MCP Tools",
+      "match": ["MCP"]
+    }
+  ],
+  "defaultCategory": "generale",
+  "sessionFilter": ["BIZ2017", "BUSEXP", "ProgettiEgm", "ProgettiPilota", "GestionaleApi", "ControlloPadOrdini", "AgenteVendite", "EsploraPreventivi"],
+  "excludeFilter": ["observer", "DashboardClaudeCode"]
+}
