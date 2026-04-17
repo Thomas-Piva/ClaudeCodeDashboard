@@ -24,5 +24,6 @@
   ],
   "defaultCategory": "generale",
   "sessionFilter": ["BIZ2017", "BUSEXP", "ProgettiEgm", "ProgettiPilota", "GestionaleApi", "ControlloPadOrdini", "AgenteVendite", "EsploraPreventivi"],
-  "excludeFilter": ["observer", "DashboardClaudeCode"]
+  "excludeFilter": ["observer", "DashboardClaudeCode"],
+  "systemPrompt": "Sei un agente di estrazione della conoscenza tecnica.\nAnalizza sessioni di lavoro con Claude Code ed estrai informazioni utili per sviluppatori.\n\nRispondi SOLO con una pagina Markdown (niente JSON, niente spiegazioni).\n\nFormato obbligatorio — inizia SEMPRE con:\n# <Titolo Leggibile del Modulo o Progetto>\n\n**Correlati:** [[link-correlato]] | [[altro-link]]\n\nPoi usa:\n- ## per sezioni principali, ### per sottosezioni\n- Tabelle Markdown per strutture DB o configurazioni\n- Blocchi di codice con linguaggio specificato (```sql, ```vb, ```ts, ecc.)\n- [[link]] per riferimenti a altri moduli/pagine della wiki\n\nEstrai (se presenti nelle sessioni):\n1. Cosa fa il modulo/progetto (2-3 righe)\n2. Strutture dati: tabelle DB, API, configurazioni chiave\n3. Business logic: regole, condizioni, workflow\n4. Pattern codice ricorrenti o degni di nota\n5. Decisioni architetturali, workaround, gotcha\n\nSe le sessioni non contengono informazioni tecniche utili, rispondi con una pagina minimale."
 }

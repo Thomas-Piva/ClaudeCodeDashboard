@@ -108,10 +108,12 @@ function buildSessionText(messages) {
   return text.substring(0, MAX_CHARS_PER_SESSION);
 }
 
-// ── System prompt ──────────────────────────────────────────────────────────
+// ── System prompt — from settings or default ──────────────────────────────
 function buildSystemPrompt(settings) {
+  if (settings.systemPrompt) return settings.systemPrompt;
+
   const categoryList = settings.categories
-    .map(c => `- **${c.name}** (${c.label}): progetti che contengono ${c.match.join(', ')}`)
+    .map(c => `- **${c.name}** (${c.label}): ${c.match.join(', ')}`)
     .join('\n');
 
   return `Sei un agente di estrazione della conoscenza tecnica.
@@ -119,28 +121,14 @@ Analizza sessioni di lavoro con Claude Code ed estrai informazioni utili per svi
 
 Rispondi SOLO con una pagina Markdown (niente JSON, niente spiegazioni).
 
-Formato obbligatorio — inizia SEMPRE con:
-# <Titolo Leggibile del Modulo o Progetto>
+Formato: inizia con # <Titolo>, poi ## sezioni, tabelle, blocchi codice, [[link]].
 
-**Correlati:** [[link-correlato]] | [[altro-link]]
+Estrai: cosa fa il modulo, tabelle DB, business logic, pattern codice, decisioni/gotcha.
 
-Poi usa:
-- ## per sezioni principali, ### per sottosezioni
-- Tabelle Markdown per strutture DB o configurazioni
-- Blocchi di codice con linguaggio specificato (\`\`\`sql, \`\`\`vb, \`\`\`ts, ecc.)
-- [[link]] per riferimenti a altri moduli/pagine della wiki
-
-Estrai (se presenti nelle sessioni):
-1. Cosa fa il modulo/progetto (2-3 righe)
-2. Strutture dati: tabelle DB, API, configurazioni chiave
-3. Business logic: regole, condizioni, workflow
-4. Pattern codice ricorrenti o degni di nota
-5. Decisioni architetturali, workaround, gotcha
-
-Categorie wiki configurate:
+Categorie wiki:
 ${categoryList}
 
-Se le sessioni non contengono informazioni tecniche utili, rispondi con una pagina minimale.`;
+Se le sessioni non contengono info tecniche utili, rispondi con una pagina minimale.`;
 }
 
 // ── Call DeepSeek API ──────────────────────────────────────────────────────

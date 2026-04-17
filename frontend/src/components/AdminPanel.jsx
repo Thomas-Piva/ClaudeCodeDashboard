@@ -54,6 +54,8 @@ export default function AdminPanel({ onClose }) {
   const [wikiPath, setWikiPath] = useState('');
   const [wikiPathInput, setWikiPathInput] = useState('');
   const [wikiCategories, setWikiCategories] = useState([]);
+  const [wikiPrompt, setWikiPrompt] = useState('');
+  const [savingPrompt, setSavingPrompt] = useState(false);
   const [savingWiki, setSavingWiki] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState(null);
@@ -72,6 +74,7 @@ export default function AdminPanel({ onClose }) {
       setWikiPath(ws.wikiPath || '');
       setWikiPathInput(ws.wikiPath || '');
       setWikiCategories(ws.categories || []);
+      setWikiPrompt(ws.systemPrompt || '');
     } catch {}
     setLoading(false);
   }, []);
@@ -128,6 +131,18 @@ export default function AdminPanel({ onClose }) {
       setBackfillResult({ error: 'Errore avvio backfill' });
     }
     setBackfilling(false);
+  };
+
+  const savePrompt = async () => {
+    setSavingPrompt(true);
+    try {
+      await fetch(`${API}/wiki-settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ systemPrompt: wikiPrompt }),
+      });
+    } catch {}
+    setSavingPrompt(false);
   };
 
   const addCategory = async () => {
@@ -471,6 +486,35 @@ export default function AdminPanel({ onClose }) {
                       {addingCat ? <span className="spin" /> : '+ AGGIUNGI'}
                     </button>
                   </div>
+                </div>
+
+                {/* ── Prompt DeepSeek ── */}
+                <div style={{ marginTop: 20 }}>
+                  <p style={{
+                    fontFamily: 'Syne, sans-serif', fontSize: '0.68rem', fontWeight: 700,
+                    color: 'var(--text-secondary)', letterSpacing: '0.1em',
+                    textTransform: 'uppercase', margin: '0 0 8px'
+                  }}>System Prompt</p>
+                  <textarea
+                    value={wikiPrompt}
+                    onChange={e => setWikiPrompt(e.target.value)}
+                    rows={6}
+                    style={{
+                      width: '100%', boxSizing: 'border-box',
+                      background: 'var(--input-bg)', border: '1px solid var(--border)',
+                      borderRadius: 6, padding: '8px 10px', color: 'var(--text-primary)',
+                      fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem',
+                      lineHeight: 1.6, resize: 'vertical',
+                    }}
+                  />
+                  <button onClick={savePrompt} disabled={savingPrompt} style={{
+                    marginTop: 6, background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+                    borderRadius: 6, padding: '6px 14px', cursor: 'pointer',
+                    fontFamily: 'Syne, sans-serif', fontSize: '0.68rem', fontWeight: 700,
+                    color: 'var(--accent)', opacity: savingPrompt ? 0.5 : 1,
+                  }}>
+                    {savingPrompt ? <span className="spin" /> : 'SALVA PROMPT'}
+                  </button>
                 </div>
               </section>
 
