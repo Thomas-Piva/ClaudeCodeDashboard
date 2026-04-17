@@ -87,7 +87,34 @@ La dashboard può generare una wiki Markdown navigabile con Obsidian dalle sessi
 - **`backend/wiki-backfill.js`** — scansiona tutto il DB SQLite, raggruppa sessioni per progetto e chiama DeepSeek V3 per estrarre conoscenza tecnica in pagine Markdown
 - **`backend/wiki-ingest.js`** — modulo incrementale: si aggancia all'indexer e aggiorna la wiki ad ogni nuova sessione indicizzata
 
-Le pagine vengono scritte in una cartella configurabile (default `C:\EGM-Wiki`) compatibile con Obsidian (`[[wikilinks]]`, tabelle, blocchi codice).
+Le pagine vengono scritte in una cartella configurabile compatibile con Obsidian (`[[wikilinks]]`, tabelle, blocchi codice).
+
+Tutta la struttura è parametrizzata in **`backend/wiki-settings.json`** — nessun codice da modificare per adattarlo a un progetto diverso:
+
+```json
+{
+  "wikiPath": "C:\\MyWiki",
+  "categories": [
+    { "name": "backend", "label": "Backend", "match": ["BackendProject", "API"] },
+    { "name": "frontend", "label": "Frontend", "match": ["FrontendApp"] }
+  ],
+  "defaultCategory": "generale",
+  "sessionFilter": ["BackendProject", "FrontendApp"],
+  "excludeFilter": ["observer", "Dashboard"],
+  "systemPrompt": "Sei un agente di estrazione della conoscenza..."
+}
+```
+
+| Campo | Descrizione |
+|-------|-------------|
+| `wikiPath` | Cartella Obsidian di destinazione |
+| `categories` | Sottocartelle wiki con pattern di match sui nomi progetto |
+| `defaultCategory` | Categoria di fallback se nessun pattern combacia |
+| `sessionFilter` | Pattern per includere sessioni nel backfill |
+| `excludeFilter` | Pattern per escludere sessioni (es. observer, dashboard) |
+| `systemPrompt` | Prompt personalizzato per DeepSeek — adattabile al dominio |
+
+Tutto configurabile anche dall'**Admin → Wiki EGM** senza toccare codice.
 
 **Avvio backfill manuale:**
 
@@ -559,14 +586,14 @@ Il client si riconnette ogni 3 secondi automaticamente. Se il problema persiste,
 
 ## Changelog
 
-### v7.0.0 (2026-04-16) — Wiki EGM: Knowledge Base automatica da sessioni
+### v7.0.0 (2026-04-17) — Wiki EGM: Knowledge Base automatica da sessioni
 
-- **`wiki-backfill.js`**: scansiona le 98+ sessioni NTS/EGM nel DB SQLite, chiama DeepSeek V3, genera pagine Markdown per ogni progetto in una cartella Obsidian configurabile
+- **`wiki-backfill.js`**: scansiona le sessioni nel DB SQLite, chiama DeepSeek V3, genera pagine Markdown per ogni progetto in una cartella Obsidian configurabile
 - **`wiki-ingest.js`**: hook in `indexer.js` — aggiorna la wiki incrementalmente ad ogni sessione indicizzata (via `setImmediate`)
-- **Admin → Wiki EGM**: nuova sezione nel pannello admin per configurare `wikiPath` e lanciare il backfill con un click
-- **`wiki-settings.json`**: persistenza path wiki separata da `.env`
-- **DeepSeek V3**: output Markdown diretto (no JSON) — 10x più economico di Claude Haiku, immune a errori di escape su codice VB.NET
-- **API**: `GET/POST /api/admin/wiki-settings`, `POST /api/admin/wiki-backfill`
+- **`wiki-settings.json`**: struttura wiki completamente parametrizzata — categorie, pattern di match, sessionFilter, excludeFilter, systemPrompt — adattabile a qualsiasi dominio senza modificare codice
+- **Admin → Wiki EGM**: sezione nel pannello admin per configurare wikiPath, categorie (add/delete con pattern), system prompt DeepSeek e lanciare il backfill con un click
+- **DeepSeek V3**: output Markdown diretto (no JSON) — ~10x più economico di Claude Haiku, immune a errori di escape su codice con virgolette
+- **API**: `GET/POST /api/admin/wiki-settings`, `POST/DELETE /api/admin/wiki-settings/categories`, `POST /api/admin/wiki-backfill`
 
 ### v6.0.0 (2026-04-14) — Claude Code Hooks + Telegram Integration
 
