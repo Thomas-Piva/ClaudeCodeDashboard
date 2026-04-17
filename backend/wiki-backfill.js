@@ -9,16 +9,15 @@ import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
 
-const DB_PATH      = path.join(import.meta.dirname, 'agentsview.db');
+const DB_PATH       = path.join(import.meta.dirname, 'agentsview.db');
 const SETTINGS_FILE = path.join(import.meta.dirname, 'wiki-settings.json');
-const MODEL        = 'deepseek-chat';
 const MAX_CHARS_PER_SESSION = 8000;
 const SESSIONS_PER_TOPIC    = 5;
 
-const client = new OpenAI({
-  baseURL: 'https://api.deepseek.com',
-  apiKey: process.env.DEEPSEEK_API_KEY,
-});
+function buildClient(provider) {
+  const apiKey = provider.apiKeyEnv ? (process.env[provider.apiKeyEnv] || 'no-key') : 'no-key';
+  return new OpenAI({ baseURL: provider.baseURL, apiKey });
+}
 
 // ── Load settings ──────────────────────────────────────────────────────────
 function loadSettings() {
@@ -131,13 +130,13 @@ ${categoryList}
 Se le sessioni non contengono info tecniche utili, rispondi con una pagina minimale.`;
 }
 
-// ── Call DeepSeek API ──────────────────────────────────────────────────────
-async function extractKnowledge(project, sessionTexts, systemPrompt) {
+// ── Call LLM API ──────────────────────────────────────────────────────────
+async function extractKnowledge(project, sessionTexts, systemPrompt, client, model) {
   const userContent = `Progetto: ${project}\n\n` +
     sessionTexts.map((t, i) => `--- SESSIONE ${i + 1} ---\n${t}`).join('\n\n');
 
   const response = await client.chat.completions.create({
-    model: MODEL,
+    model,
     max_tokens: 4096,
     messages: [
       { role: 'system', content: systemPrompt },
@@ -189,12 +188,16 @@ function groupByProject(sessions) {
 // ── Main ───────────────────────────────────────────────────────────────────
 async function main() {
   const settings = loadSettings();
+  const provider  = settings.provider || { baseURL: 'https://api.deepseek.com', model: 'deepseek-chat', apiKeyEnv: 'DEEPSEEK_API_KEY' };
+  const client    = buildClient(provider);
+  const model     = provider.model;
 
   console.log('Wiki Backfill');
   console.log('=============');
   console.log(`DB:         ${DB_PATH}`);
   console.log(`Wiki:       ${settings.wikiPath}`);
-  console.log(`Model:      ${MODEL}`);
+  console.log(`Provider:   ${provider.baseURL}`);
+  console.log(`Model:      ${model}`);
   console.log(`Categories: ${settings.categories.map(c => c.name).join(', ')}`);
   console.log(`Filter:     ${settings.sessionFilter.join(', ')}\n`);
 
@@ -227,7 +230,7 @@ async function main() {
     }
 
     try {
-      const markdown = await extractKnowledge(project, sessionTexts, systemPrompt);
+      const markdown = await extractKnowledge(project, sessionTexts, systemPrompt, client, model);
       writeWikiPage(settings.wikiPath, category, topic, markdown);
       processed++;
     } catch (err) {

@@ -55,6 +55,8 @@ export default function AdminPanel({ onClose }) {
   const [wikiPathInput, setWikiPathInput] = useState('');
   const [wikiCategories, setWikiCategories] = useState([]);
   const [wikiPrompt, setWikiPrompt] = useState('');
+  const [wikiProvider, setWikiProvider] = useState({ baseURL: '', model: '', apiKeyEnv: '' });
+  const [savingProvider, setSavingProvider] = useState(false);
   const [savingPrompt, setSavingPrompt] = useState(false);
   const [savingWiki, setSavingWiki] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
@@ -75,6 +77,7 @@ export default function AdminPanel({ onClose }) {
       setWikiPathInput(ws.wikiPath || '');
       setWikiCategories(ws.categories || []);
       setWikiPrompt(ws.systemPrompt || '');
+      setWikiProvider(ws.provider || { baseURL: '', model: '', apiKeyEnv: '' });
     } catch {}
     setLoading(false);
   }, []);
@@ -131,6 +134,25 @@ export default function AdminPanel({ onClose }) {
       setBackfillResult({ error: 'Errore avvio backfill' });
     }
     setBackfilling(false);
+  };
+
+  const PRESETS = [
+    { label: 'DeepSeek V3',    baseURL: 'https://api.deepseek.com',      model: 'deepseek-chat',  apiKeyEnv: 'DEEPSEEK_API_KEY' },
+    { label: 'LM Studio',      baseURL: 'http://localhost:1234/v1',       model: 'local-model',    apiKeyEnv: '' },
+    { label: 'OpenAI GPT-4o',  baseURL: 'https://api.openai.com/v1',     model: 'gpt-4o',         apiKeyEnv: 'OPENAI_API_KEY' },
+    { label: 'OpenAI GPT-4o-mini', baseURL: 'https://api.openai.com/v1', model: 'gpt-4o-mini',    apiKeyEnv: 'OPENAI_API_KEY' },
+  ];
+
+  const saveProvider = async () => {
+    setSavingProvider(true);
+    try {
+      await fetch(`${API}/wiki-settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: wikiProvider }),
+      });
+    } catch {}
+    setSavingProvider(false);
   };
 
   const savePrompt = async () => {
@@ -448,6 +470,41 @@ export default function AdminPanel({ onClose }) {
                     {backfillResult.error ? `✗ ${backfillResult.error}` : `✓ ${backfillResult.message}`}
                   </div>
                 )}
+
+                {/* ── Provider LLM ── */}
+                <div style={{ marginTop: 20 }}>
+                  <p style={{
+                    fontFamily: 'Syne, sans-serif', fontSize: '0.68rem', fontWeight: 700,
+                    color: 'var(--text-secondary)', letterSpacing: '0.1em',
+                    textTransform: 'uppercase', margin: '0 0 8px'
+                  }}>Provider LLM</p>
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+                    {PRESETS.map(p => (
+                      <button key={p.label} onClick={() => setWikiProvider({ baseURL: p.baseURL, model: p.model, apiKeyEnv: p.apiKeyEnv })}
+                        style={{
+                          background: wikiProvider.model === p.model ? 'var(--accent-dim)' : 'var(--card-bg)',
+                          border: `1px solid ${wikiProvider.model === p.model ? 'var(--accent-border)' : 'var(--border)'}`,
+                          borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
+                          fontFamily: 'Syne, sans-serif', fontSize: '0.65rem', fontWeight: 700,
+                          color: wikiProvider.model === p.model ? 'var(--accent)' : 'var(--text-muted)',
+                        }}>{p.label}</button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: 6 }}>
+                    <input value={wikiProvider.baseURL} onChange={e => setWikiProvider(p => ({ ...p, baseURL: e.target.value }))}
+                      placeholder="Base URL" style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem' }} />
+                    <input value={wikiProvider.model} onChange={e => setWikiProvider(p => ({ ...p, model: e.target.value }))}
+                      placeholder="model" style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem' }} />
+                    <input value={wikiProvider.apiKeyEnv} onChange={e => setWikiProvider(p => ({ ...p, apiKeyEnv: e.target.value }))}
+                      placeholder="API key env var" style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', color: 'var(--text-primary)', fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem' }} />
+                    <button onClick={saveProvider} disabled={savingProvider} style={{
+                      background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+                      borderRadius: 6, padding: '5px 12px', cursor: 'pointer',
+                      fontFamily: 'Syne, sans-serif', fontSize: '0.68rem', fontWeight: 700,
+                      color: 'var(--accent)', opacity: savingProvider ? 0.5 : 1,
+                    }}>{savingProvider ? <span className="spin" /> : 'SALVA'}</button>
+                  </div>
+                </div>
 
                 {/* ── Categorie wiki ── */}
                 <div style={{ marginTop: 20 }}>
