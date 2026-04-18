@@ -83,8 +83,8 @@ Due componenti cooperano:
 
 | File | Ruolo |
 |------|-------|
-| `backend/wiki-backfill.js` | Scansiona **tutto** il DB, raggruppa per progetto, chiama un LLM e genera pagine Markdown |
-| `backend/wiki-ingest.js` | Hook in `indexer.js` — aggiorna la wiki **incrementalmente** ad ogni nuova sessione indicizzata |
+| `backend/wiki-backfill.js` | Scansiona tutto il DB, raggruppa per progetto, legge i **file sorgente realmente toccati** nelle sessioni e chiama un LLM per generare pagine Markdown |
+| `backend/wiki-ingest.js` | Hook in `indexer.js` — aggiorna la wiki incrementalmente ad ogni nuova sessione, includendo i file sorgente toccati |
 
 Le pagine Markdown sono compatibili con Obsidian (`[[wikilinks]]`, tabelle, blocchi codice).
 
@@ -120,6 +120,7 @@ Tutta la struttura è parametrizzata in `backend/wiki-settings.json` — nessun 
 | `excludeFilter` | Pattern per escludere sessioni (es. observer, dashboard) |
 | `systemPrompt` | Prompt personalizzato per il modello — adattabile al dominio |
 | `provider` | Configurazione LLM: URL, modello, variabile env della API key |
+| `sourceExtensions` | Estensioni file sorgente da leggere (default: `.vb .cs .ts .js .py .jsx .tsx .java .go`) |
 
 ### Provider LLM
 
@@ -146,7 +147,9 @@ node --env-file=.env backend/wiki-backfill.js
 
 Oppure dal pannello **Admin → Wiki EGM → GENERA WIKI DA SESSIONI**.
 
-**Ingestion incrementale**: automatica — `wiki-ingest.js` si aggancia all'indexer e aggiorna la wiki ad ogni nuova sessione. Funziona anche se il terminale viene chiuso brutalmente: il watcher (`chokidar`) rileva la modifica del file `.jsonl` indipendentemente dall'hook `Stop`, quindi la sessione viene indicizzata e la wiki aggiornata comunque.
+**Ingestion incrementale**: automatica — `wiki-ingest.js` si aggancia all'indexer e aggiorna la wiki ad ogni nuova sessione, leggendo anche i file sorgente toccati durante la sessione. Funziona anche se il terminale viene chiuso brutalmente: il watcher (`chokidar`) rileva la modifica del file `.jsonl` indipendentemente dall'hook `Stop`, quindi la sessione viene indicizzata e la wiki aggiornata comunque.
+
+**Come vengono scelti i file sorgente**: lo script analizza i blocchi `tool_use` nel file `.jsonl` raw della sessione ed estrae i `file_path` dei tool `Read`, `Edit` e `Write` effettivamente usati da Claude — solo i file realmente toccati, non l'intera codebase.
 
 ---
 
@@ -529,6 +532,13 @@ Windows blocca `SetForegroundWindow` dai processi in background. La dashboard us
 ## Changelog
 
 <small>
+
+**v7.1.0** (2026-04-18) — Wiki: source files enrichment
+- Backfill e ingest leggono i file sorgente realmente toccati nelle sessioni (via `tool_use` del JSONL raw)
+- Solo file effettivamente aperti/modificati da Claude — niente rumore da file non correlati
+- `sourceExtensions` configurabile in `wiki-settings.json`
+- Fix categoria `egm-pilots` (match `Progetti-Pilota` con trattino)
+- Prompt più restrittivo: proibisce contenuto inventato, pagina minimale se niente da estrarre
 
 **v7.0.0** (2026-04-17) — Wiki EGM
 - `wiki-backfill.js`: genera pagine Markdown da tutte le sessioni via LLM
