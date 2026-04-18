@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Claude Code — Schema Architettura</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #f5f5f0;
+    color: #222;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 40px 20px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 700;
+    color: #111;
+    margin-bottom: 8px;
+  }
+  .subtitle {
+    text-align: center;
+    color: #888;
+    font-size: 0.95rem;
+    margin-bottom: 50px;
+  }
+
+  .diagram {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .row {
+    display: flex;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .box {
+    border: 2px solid #e0e0e0;
+    border-radius: 14px;
+    padding: 22px;
+    flex: 1;
+    background: #fff;
+  }
+  .box.green  { border-color: #4caf50; }
+  .box.blue   { border-color: #1976d2; }
+  .box.purple { border-color: #7b1fa2; }
+  .box.orange { border-color: #e65100; }
+  .box.teal   { border-color: #00796b; }
+  .box.gray   { border-color: #9e9e9e; }
+
+  .box-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .box.green  .box-title { color: #2e7d32; }
+  .box.blue   .box-title { color: #1565c0; }
+  .box.purple .box-title { color: #6a1b9a; }
+  .box.orange .box-title { color: #bf360c; }
+  .box.teal   .box-title { color: #004d40; }
+  .box.gray   .box-title { color: #555; }
+
+  .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .box.green  .dot { background: #4caf50; }
+  .box.blue   .dot { background: #1976d2; }
+  .box.purple .dot { background: #7b1fa2; }
+  .box.orange .dot { background: #e65100; }
+  .box.teal   .dot { background: #00796b; }
+  .box.gray   .dot { background: #9e9e9e; }
+
+  .item {
+    font-size: 0.85rem;
+    color: #555;
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    line-height: 1.4;
+  }
+  .item:last-child { border-bottom: none; }
+  .item .icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+  .item strong { color: #111; font-weight: 600; }
+  .item code { background: #f5f5f5; border-radius: 4px; padding: 1px 5px; font-size: 0.8rem; color: #333; }
+
+  .arrow-down {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0;
+  }
+  .arrow-down .vline { width: 2px; height: 18px; background: #ccc; }
+  .arrow-down .vtip {
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid #ccc;
+  }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 6px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .badge-green  { background: #e8f5e9; color: #2e7d32; }
+  .badge-blue   { background: #e3f2fd; color: #1565c0; }
+  .badge-orange { background: #fbe9e7; color: #bf360c; }
+
+  .flow-title {
+    text-align: center;
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #aaa;
+    margin: 30px 0 16px;
+  }
+
+  hr { border: none; border-top: 1px solid #e8e8e8; margin: 30px 0; }
+
+  .flow-steps {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .step {
+    background: #fff;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    padding: 12px 16px;
+    text-align: center;
+    min-width: 120px;
+  }
+  .step .step-num { font-size: 0.65rem; color: #bbb; margin-bottom: 4px; font-weight: 700; }
+  .step .step-text { font-size: 0.82rem; color: #555; line-height: 1.4; }
+  .step .step-text strong { color: #111; }
+  .step-arrow { color: #ccc; font-size: 1.4rem; }
+
+  .collab-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .collab-pc {
+    background: #fff;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    padding: 18px;
+    text-align: center;
+  }
+  .collab-pc .pc-icon { font-size: 1.8rem; margin-bottom: 8px; }
+  .collab-pc .pc-name { font-size: 0.8rem; font-weight: 700; color: #222; }
+  .collab-pc .pc-label { font-size: 0.75rem; color: #999; margin-top: 4px; }
+
+  .collab-arrow {
+    text-align: center;
+    color: #bbb;
+    font-size: 0.8rem;
+    margin: 10px 0;
+  }
+
+  .shared-box {
+    background: #fff;
+    border: 2px solid #4caf50;
+    border-radius: 14px;
+    padding: 20px 32px;
+    text-align: center;
+    max-width: 380px;
+    margin: 0 auto;
+  }
+  .shared-box .icon { font-size: 2rem; margin-bottom: 8px; }
+  .shared-box .name { font-size: 1rem; font-weight: 700; color: #2e7d32; }
+  .shared-box .desc { font-size: 0.82rem; color: #888; margin-top: 6px; line-height: 1.6; }
+
+  footer {
+    text-align: center;
+    margin-top: 50px;
+    font-size: 0.75rem;
+    color: #ccc;
+    letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+
+<h1>Dashboard Claude Code</h1>
+<div class="subtitle">Architettura del sistema · v7.1.0</div>
+
+<div class="diagram">
+
+  <!-- RIGA 1 -->
+  <div class="row">
+    <div class="box green" style="flex:1.2">
+      <div class="box-title"><div class="dot"></div> Claude Code Sessions</div>
+      <div class="item"><span class="icon">💬</span><span>Conversazioni con Claude Code sui progetti</span></div>
+      <div class="item"><span class="icon">🔧</span><span>Tool call: <strong>Read, Edit, Write, Bash</strong></span></div>
+      <div class="item"><span class="icon">📁</span><span>File <strong>.jsonl</strong> scritti in <code>~/.claude/projects/</code></span></div>
+      <div class="item"><span class="icon">⚡</span><span>Hook <strong>Stop / PreToolUse / Notification</strong> → POST al backend</span></div>
+    </div>
+
+    <div class="box blue" style="flex:1">
+      <div class="box-title"><div class="dot"></div> Progetti Monitorati</div>
+      <div class="item"><span class="icon">📂</span><span><strong>Scan Roots</strong> configurabili (profondità 2)</span></div>
+      <div class="item"><span class="icon">🔍</span><span>Discovery automatico nuovi progetti</span></div>
+      <div class="item"><span class="icon">👁️</span><span>Watcher <strong>chokidar</strong> — rileva modifiche real-time</span></div>
+      <div class="item"><span class="icon">🚫</span><span>Esclusione per card con <strong>⊗</strong></span></div>
+    </div>
+
+    <div class="box purple" style="flex:1">
+      <div class="box-title"><div class="dot"></div> Notifiche Telegram</div>
+      <div class="item"><span class="icon">✅</span><span>Sessione terminata <span class="badge badge-green">Stop</span></span></div>
+      <div class="item"><span class="icon">💥</span><span>Errore Bash exit ≠ 0 <span class="badge badge-orange">PostToolUse</span></span></div>
+      <div class="item"><span class="icon">🤖</span><span>Bot <strong>ClaudeOps</strong> — native fetch Node 18+</span></div>
+    </div>
+  </div>
+
+  <div class="arrow-down"><div class="vline"></div><div class="vtip"></div></div>
+
+  <!-- RIGA 2 -->
+  <div class="row">
+    <div class="box orange" style="flex:2">
+      <div class="box-title"><div class="dot"></div> Backend — Express + WebSocket <span class="badge badge-orange">Node.js ≥18</span></div>
+      <div class="row" style="gap:16px; margin-top:4px">
+        <div style="flex:1">
+          <div class="item"><span class="icon">🗄️</span><span><strong>SQLite FTS5</strong> — agentsview.db</span></div>
+          <div class="item"><span class="icon">📋</span><span><strong>indexer.js</strong> — parser JSONL → SQLite</span></div>
+          <div class="item"><span class="icon">🔌</span><span><strong>WebSocket</strong> — status live ai client</span></div>
+        </div>
+        <div style="flex:1">
+          <div class="item"><span class="icon">🔎</span><span><strong>FTS5</strong> — ricerca full-text messaggi</span></div>
+          <div class="item"><span class="icon">📊</span><span><strong>Analytics</strong> — heatmap, tool usage</span></div>
+          <div class="item"><span class="icon">⚙️</span><span><strong>Admin API</strong> — scan-paths, wiki</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="box teal" style="flex:1">
+      <div class="box-title"><div class="dot"></div> Frontend <span class="badge badge-blue">React 18</span></div>
+      <div class="item"><span class="icon">🟢</span><span>3 colonne: <strong>Attivi / Check / Inattivi</strong></span></div>
+      <div class="item"><span class="icon">🔍</span><span><strong>Ctrl+K</strong> ricerca globale</span></div>
+      <div class="item"><span class="icon">📈</span><span>Analytics — heatmap 365 giorni</span></div>
+      <div class="item"><span class="icon">📄</span><span>Session viewer + export HTML</span></div>
+      <div class="item"><span class="icon">⚙️</span><span>Admin Panel — config completa</span></div>
+    </div>
+  </div>
+
+  <div class="arrow-down"><div class="vline"></div><div class="vtip"></div></div>
+
+  <!-- RIGA 3 -->
+  <div class="row">
+    <div class="box purple" style="flex:1.1">
+      <div class="box-title"><div class="dot"></div> Wiki Engine</div>
+      <div class="item"><span class="icon">⚡</span><span><strong>wiki-ingest.js</strong> — incrementale, scatta dopo ogni sessione</span></div>
+      <div class="item"><span class="icon">🔄</span><span><strong>wiki-backfill.js</strong> — rigenera tutto (manuale)</span></div>
+      <div class="item"><span class="icon">📂</span><span>Legge <strong>solo i file toccati</strong> da Claude (via tool_use)</span></div>
+      <div class="item"><span class="icon">🤖</span><span>LLM OpenAI-compatible → Markdown</span></div>
+      <div class="item"><span class="icon">🛡️</span><span>Anti-template filter + dedup heading</span></div>
+    </div>
+
+    <div class="box gray" style="flex:1">
+      <div class="box-title"><div class="dot"></div> wiki-settings.json</div>
+      <div class="item"><span class="icon">📁</span><span><code>wikiPath</code> — cartella Obsidian</span></div>
+      <div class="item"><span class="icon">🏷️</span><span><code>categories</code> — match progetto → cartella</span></div>
+      <div class="item"><span class="icon">🔽</span><span><code>sessionFilter / excludeFilter</code></span></div>
+      <div class="item"><span class="icon">💬</span><span><code>systemPrompt</code> — prompt customizzabile</span></div>
+      <div class="item"><span class="icon">🔌</span><span><code>provider</code> — DeepSeek / LM Studio / OpenAI</span></div>
+      <div class="item"><span class="icon">📝</span><span><code>sourceExtensions</code> — .vb .cs .ts .js .py</span></div>
+    </div>
+
+    <div class="box teal" style="flex:1">
+      <div class="box-title"><div class="dot"></div> EGM-Wiki (Obsidian)</div>
+      <div class="item"><span class="icon">📁</span><span><strong>nts-gestionale/</strong> — BIZ2017, BUSEXP</span></div>
+      <div class="item"><span class="icon">📁</span><span><strong>egm-projects/</strong> — ProgettiEgm</span></div>
+      <div class="item"><span class="icon">📁</span><span><strong>egm-pilots/</strong> — Prototipi</span></div>
+      <div class="item"><span class="icon">🔗</span><span><code>[[wikilinks]]</code> — navigazione Obsidian</span></div>
+      <div class="item"><span class="icon">🌐</span><span>Cartella di <strong>rete condivisa</strong></span></div>
+    </div>
+  </div>
+
+  <hr>
+
+  <div class="flow-title">— Flusso automatico per ogni sessione —</div>
+
+  <div class="flow-steps">
+    <div class="step"><div class="step-num">01</div><div class="step-text">Lavori su<br><strong>BIZ2017</strong></div></div>
+    <div class="step-arrow">→</div>
+    <div class="step"><div class="step-num">02</div><div class="step-text">Claude scrive<br><strong>.jsonl</strong></div></div>
+    <div class="step-arrow">→</div>
+    <div class="step"><div class="step-num">03</div><div class="step-text">Watcher rileva<br><strong>modifica</strong></div></div>
+    <div class="step-arrow">→</div>
+    <div class="step"><div class="step-num">04</div><div class="step-text">Indexer salva<br><strong>SQLite</strong></div></div>
+    <div class="step-arrow">→</div>
+    <div class="step"><div class="step-num">05</div><div class="step-text">Estrae file<br><strong>sorgente toccati</strong></div></div>
+    <div class="step-arrow">→</div>
+    <div class="step"><div class="step-num">06</div><div class="step-text">LLM genera<br><strong>pagina wiki</strong></div></div>
+    <div class="step-arrow">→</div>
+    <div class="step"><div class="step-num">07</div><div class="step-text">Obsidian<br><strong>aggiornato</strong></div></div>
+  </div>
+
+  <hr>
+
+  <div class="flow-title">— Utilizzo condiviso tra colleghi —</div>
+
+  <div class="collab-grid">
+    <div class="collab-pc"><div class="pc-icon">🖥️</div><div class="pc-name">Attilio</div><div class="pc-label">lavora su BIZ2017</div></div>
+    <div class="collab-pc"><div class="pc-icon">🖥️</div><div class="pc-name">Collega</div><div class="pc-label">lavora su ProgettiEgm</div></div>
+    <div class="collab-pc"><div class="pc-icon">🖥️</div><div class="pc-name">Collega</div><div class="pc-label">lavora su BUSEXP</div></div>
+  </div>
+
+  <div class="collab-arrow">↓ &nbsp; ognuno alimenta la stessa wiki &nbsp; ↓</div>
+
+  <div class="shared-box">
+    <div class="icon">📂</div>
+    <div class="name">Wiki condivisa in rete</div>
+    <div class="desc">La documentazione cresce dal lavoro di tutti.<br>Nessun conflitto — ogni collega lavora su moduli diversi.</div>
+  </div>
+
+</div>
+
+<footer>Dashboard Claude Code · Made with Claude Code · v7.1.0</footer>
+
+</body>
+</html>

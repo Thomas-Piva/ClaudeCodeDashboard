@@ -13,6 +13,8 @@
 
 *Monitora N sessioni Claude Code parallele, cerca nei messaggi passati, analizza i pattern di utilizzo, ricevi notifiche push su Telegram, e genera automaticamente una knowledge base Markdown dal tuo storico.*
 
+<img src="Altro/schema-simple.png" alt="Come funziona" width="700" />
+
 [Avvio Rapido](#-avvio-rapido) • [Funzionalità](#-funzionalità) • [Wiki EGM](#-wiki-egm) • [Come Funziona](#-come-funziona) • [Configurazione](#-configurazione) • [API](#-api-reference) • [Troubleshooting](#-troubleshooting)
 
 </div>
@@ -154,6 +156,8 @@ Oppure dal pannello **Admin → Wiki EGM → GENERA WIKI DA SESSIONI**.
 ---
 
 ## Come Funziona
+
+<img src="Altro/schema.png" alt="Architettura tecnica" width="860" />
 
 ### Claude Code Hooks
 
