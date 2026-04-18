@@ -10,7 +10,6 @@ import Database from 'better-sqlite3';
 import OpenAI from 'openai';
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 
 const DB_PATH       = path.join(import.meta.dirname, 'agentsview.db');
 const SETTINGS_FILE = path.join(import.meta.dirname, 'wiki-settings.json');
@@ -34,24 +33,17 @@ function loadSettings() {
   }
 }
 
-// ── Directory structure from settings ─────────────────────────────────────
-function ensureWikiDirs(settings) {
-  const dirs = settings.categories.map(c => c.name);
-  if (settings.defaultCategory) dirs.push(settings.defaultCategory);
-  for (const d of dirs) fs.mkdirSync(path.join(settings.wikiPath, d), { recursive: true });
+function ensureWikiRoot(wikiPath) {
+  fs.mkdirSync(wikiPath, { recursive: true });
 }
 
 // ── Categorize project ─────────────────────────────────────────────────────
-function categorize(project, settings) {
-  for (const cat of settings.categories) {
-    if (cat.match.some(p => project.toLowerCase().includes(p.toLowerCase()))) return cat.name;
-  }
-  return settings.defaultCategory || 'generale';
-}
-
-function topicFromProject(project) {
-  const base = project.split('-').slice(-2).join('-').toLowerCase();
-  return base.replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+function folderAndTopicFromProject(project) {
+  const withoutDrive = project.replace(/^[A-Za-z]--/, '');
+  const sanitized = withoutDrive.replace(/[^a-zA-Z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  const lastDash = sanitized.lastIndexOf('-');
+  if (lastDash === -1) return { folder: sanitized, topic: sanitized.toLowerCase() };
+  return { folder: sanitized.substring(0, lastDash), topic: sanitized.substring(lastDash + 1).toLowerCase() };
 }
 
 // ── DB queries ─────────────────────────────────────────────────────────────
@@ -199,9 +191,8 @@ function extractSections(markdown) {
   return sections;
 }
 
-function sectionHash({ heading, body }) {
-  const normalized = (heading + '\n' + body).toLowerCase().replace(/\s+/g, ' ').trim();
-  return crypto.createHash('sha1').update(normalized).digest('hex');
+function normalizeHeading(h) {
+  return h.replace(/^#+\s*/, '').toLowerCase().trim();
 }
 
 function validateOutput(markdown) {
@@ -214,7 +205,7 @@ function validateOutput(markdown) {
 }
 
 // ── Write / merge wiki page ────────────────────────────────────────────────
-function writeWikiPage(wikiPath, category, topic, markdown) {
+function writeWikiPage(wikiPath, folder, topic, markdown) {
   const validation = validateOutput(markdown);
   if (!validation.ok) {
     console.log(`  ⚠ skipped: ${topic}.md — ${validation.reason}`);
@@ -225,20 +216,21 @@ function writeWikiPage(wikiPath, category, topic, markdown) {
     return;
   }
 
-  const dir  = path.join(wikiPath, category);
+  const dir  = path.join(wikiPath, folder);
   const file = path.join(dir, `${topic}.md`);
+  fs.mkdirSync(dir, { recursive: true });
 
   if (fs.existsSync(file)) {
-    const existing       = fs.readFileSync(file, 'utf8');
-    const existingHashes = new Set(extractSections(existing).map(sectionHash));
-    const newSections    = extractSections(markdown).filter(s => !existingHashes.has(sectionHash(s)));
+    const existing         = fs.readFileSync(file, 'utf8');
+    const existingHeadings = new Set(extractSections(existing).map(s => normalizeHeading(s.heading)));
+    const newSections      = extractSections(markdown).filter(s => !existingHeadings.has(normalizeHeading(s.heading)));
     if (newSections.length === 0) { console.log(`  ↔ unchanged: ${topic}.md`); return; }
     const appendText = newSections.map(s => s.heading + '\n' + s.body).join('\n\n');
     fs.appendFileSync(file, '\n\n---\n\n' + appendText);
-    console.log(`  ↑ updated: ${category}/${topic}.md (+${newSections.length} sezioni)`);
+    console.log(`  ↑ updated: ${folder}/${topic}.md (+${newSections.length} sezioni)`);
   } else {
     fs.writeFileSync(file, markdown);
-    console.log(`  + created: ${category}/${topic}.md`);
+    console.log(`  + created: ${folder}/${topic}.md`);
   }
 }
 
@@ -270,7 +262,7 @@ async function main() {
   console.log(`Filter:     ${settings.sessionFilter.join(', ')}`);
   console.log(`Source ext: ${sourceExts.join(', ')}\n`);
 
-  ensureWikiDirs(settings);
+  ensureWikiRoot(settings.wikiPath);
 
   const sessions  = getSessions(settings);
   console.log(`Found ${sessions.length} sessions\n`);
@@ -282,9 +274,8 @@ async function main() {
   let processed = 0, errors = 0;
 
   for (const [project, projectSessions] of byProject) {
-    const category = categorize(project, settings);
-    const topic    = topicFromProject(project);
-    console.log(`[${category}] ${project} (${projectSessions.length} sessions)`);
+    const { folder, topic } = folderAndTopicFromProject(project);
+    console.log(`[${folder}] ${project} (${projectSessions.length} sessions)`);
 
     const toProcess    = projectSessions.slice(0, SESSIONS_PER_TOPIC);
     const sessionTexts = toProcess
@@ -305,7 +296,7 @@ async function main() {
 
     try {
       const markdown = await extractKnowledge(project, sessionTexts, sourceFiles, systemPrompt, client, model);
-      writeWikiPage(settings.wikiPath, category, topic, markdown);
+      writeWikiPage(settings.wikiPath, folder, topic, markdown);
       processed++;
     } catch (err) {
       console.error(`  ✗ error: ${err.message}`);

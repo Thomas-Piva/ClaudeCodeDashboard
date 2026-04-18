@@ -8,7 +8,6 @@ import OpenAI from 'openai';
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
 
 const DB_PATH            = path.join(import.meta.dirname, 'agentsview.db');
 const SETTINGS_FILE      = path.join(import.meta.dirname, 'wiki-settings.json');
@@ -30,16 +29,12 @@ function buildClient(provider) {
   return new OpenAI({ baseURL: provider.baseURL, apiKey });
 }
 
-function categorize(project, settings) {
-  for (const cat of settings.categories) {
-    if (cat.match.some(p => project.toLowerCase().includes(p.toLowerCase()))) return cat.name;
-  }
-  return settings.defaultCategory || 'generale';
-}
-
-function topicFromProject(project) {
-  return project.split('-').slice(-2).join('-').toLowerCase()
-    .replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+function folderAndTopicFromProject(project) {
+  const withoutDrive = project.replace(/^[A-Za-z]--/, '');
+  const sanitized = withoutDrive.replace(/[^a-zA-Z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+  const lastDash = sanitized.lastIndexOf('-');
+  if (lastDash === -1) return { folder: sanitized, topic: sanitized.toLowerCase() };
+  return { folder: sanitized.substring(0, lastDash), topic: sanitized.substring(lastDash + 1).toLowerCase() };
 }
 
 function extractFilesFromJSONL(jsonlPath, sourceExts) {
@@ -120,9 +115,8 @@ function extractSections(markdown) {
   return sections;
 }
 
-function sectionHash({ heading, body }) {
-  const normalized = (heading + '\n' + body).toLowerCase().replace(/\s+/g, ' ').trim();
-  return crypto.createHash('sha1').update(normalized).digest('hex');
+function normalizeHeading(h) {
+  return h.replace(/^#+\s*/, '').toLowerCase().trim();
 }
 
 function validateOutput(markdown) {
@@ -134,29 +128,29 @@ function validateOutput(markdown) {
   return { ok: true };
 }
 
-function writeWikiPage(wikiPath, category, topic, markdown) {
+function writeWikiPage(wikiPath, folder, topic, markdown) {
   const validation = validateOutput(markdown);
   if (!validation.ok) {
-    console.warn(`[wiki-ingest] skipped ${category}/${topic}.md — ${validation.reason}`);
+    console.warn(`[wiki-ingest] skipped ${folder}/${topic}.md — ${validation.reason}`);
     return;
   }
   if (isTemplateContent(markdown)) return;
 
-  const dir  = path.join(wikiPath, category);
+  const dir  = path.join(wikiPath, folder);
   const file = path.join(dir, `${topic}.md`);
   fs.mkdirSync(dir, { recursive: true });
 
   if (fs.existsSync(file)) {
-    const existing = fs.readFileSync(file, 'utf8');
-    const existingHashes = new Set(extractSections(existing).map(sectionHash));
-    const newSections = extractSections(markdown).filter(s => !existingHashes.has(sectionHash(s)));
+    const existing         = fs.readFileSync(file, 'utf8');
+    const existingHeadings = new Set(extractSections(existing).map(s => normalizeHeading(s.heading)));
+    const newSections      = extractSections(markdown).filter(s => !existingHeadings.has(normalizeHeading(s.heading)));
     if (newSections.length === 0) return;
     const appendText = newSections.map(s => s.heading + '\n' + s.body).join('\n\n');
     fs.appendFileSync(file, '\n\n---\n\n' + appendText);
-    console.log(`📖 wiki updated: ${category}/${topic}.md (+${newSections.length} sezioni)`);
+    console.log(`📖 wiki updated: ${folder}/${topic}.md (+${newSections.length} sezioni)`);
   } else {
     fs.writeFileSync(file, markdown);
-    console.log(`📖 wiki created: ${category}/${topic}.md`);
+    console.log(`📖 wiki created: ${folder}/${topic}.md`);
   }
 }
 
@@ -207,9 +201,8 @@ export async function wikiIngest(sessionId, projectName) {
     });
 
     const markdown = response.choices[0]?.message?.content ?? '';
-    const category = categorize(projectName, settings);
-    const topic    = topicFromProject(projectName);
-    writeWikiPage(settings.wikiPath, category, topic, markdown);
+    const { folder, topic } = folderAndTopicFromProject(projectName);
+    writeWikiPage(settings.wikiPath, folder, topic, markdown);
   } catch (e) {
     console.warn(`[wiki-ingest] ${projectName}: ${e.message}`);
   }
