@@ -9,9 +9,12 @@ import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 
-const DB_PATH       = path.join(import.meta.dirname, 'agentsview.db');
-const SETTINGS_FILE = path.join(import.meta.dirname, 'wiki-settings.json');
-const MAX_CHARS     = 6000;
+const DB_PATH            = path.join(import.meta.dirname, 'agentsview.db');
+const SETTINGS_FILE      = path.join(import.meta.dirname, 'wiki-settings.json');
+const MAX_CHARS          = 6000;
+const MAX_SOURCE_FILES   = 6;
+const MAX_FILE_CHARS     = 2000;
+const DEFAULT_SOURCE_EXTS = ['.vb', '.cs', '.ts', '.js', '.py', '.jsx', '.tsx', '.java', '.go'];
 
 function loadSettings() {
   try {
@@ -36,6 +39,41 @@ function categorize(project, settings) {
 function topicFromProject(project) {
   return project.split('-').slice(-2).join('-').toLowerCase()
     .replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+
+function extractFilesFromJSONL(jsonlPath, sourceExts) {
+  const files = new Set();
+  try {
+    const lines = fs.readFileSync(jsonlPath, 'utf8').split('\n').filter(Boolean);
+    for (const line of lines) {
+      try {
+        const obj = JSON.parse(line);
+        if (obj.type !== 'assistant') continue;
+        for (const block of (obj.message?.content || [])) {
+          if (block.type !== 'tool_use') continue;
+          const fp = block.input?.file_path || block.input?.path;
+          if (!fp || typeof fp !== 'string') continue;
+          const ext = path.extname(fp).toLowerCase();
+          if (sourceExts.includes(ext)) files.add(fp.replace(/\//g, path.sep));
+        }
+      } catch {}
+    }
+  } catch {}
+  return [...files];
+}
+
+function readSourceFiles(filePaths, sourceExts) {
+  const result = [], seen = new Set();
+  for (const fp of filePaths) {
+    if (seen.has(fp) || result.length >= MAX_SOURCE_FILES) break;
+    seen.add(fp);
+    if (!sourceExts.includes(path.extname(fp).toLowerCase())) continue;
+    try {
+      const content = fs.readFileSync(fp, 'utf8');
+      result.push({ path: fp, content: content.substring(0, MAX_FILE_CHARS) });
+    } catch {}
+  }
+  return result;
 }
 
 function isRelevant(projectName, settings) {
@@ -102,13 +140,11 @@ export async function wikiIngest(sessionId, projectName) {
   try {
     const settings = loadSettings();
     if (!settings) return;
-
     if (!isRelevant(projectName, settings)) return;
 
     const db = new Database(DB_PATH, { readonly: true });
-    const messages = db.prepare(
-      'SELECT role, content FROM messages WHERE session_id = ? ORDER BY timestamp ASC LIMIT 40'
-    ).all(sessionId);
+    const messages   = db.prepare('SELECT role, content FROM messages WHERE session_id = ? ORDER BY timestamp ASC LIMIT 40').all(sessionId);
+    const sessionRow = db.prepare('SELECT file_path FROM sessions WHERE id = ?').get(sessionId);
     db.close();
 
     if (messages.length < 3) return;
@@ -116,18 +152,33 @@ export async function wikiIngest(sessionId, projectName) {
     const sessionText = buildSessionText(messages);
     if (sessionText.length < 100) return;
 
-    const provider = settings.provider || { baseURL: 'https://api.deepseek.com', model: 'deepseek-chat', apiKeyEnv: 'DEEPSEEK_API_KEY' };
-    const client   = buildClient(provider);
-    const model    = provider.model;
+    // Extract source files touched in this session
+    const sourceExts  = settings.sourceExtensions || DEFAULT_SOURCE_EXTS;
+    const filePaths   = sessionRow?.file_path ? extractFilesFromJSONL(sessionRow.file_path, sourceExts) : [];
+    const sourceFiles = readSourceFiles(filePaths, sourceExts);
 
+    const provider     = settings.provider || { baseURL: 'https://api.deepseek.com', model: 'deepseek-chat', apiKeyEnv: 'DEEPSEEK_API_KEY' };
+    const client       = buildClient(provider);
+    const model        = provider.model;
     const systemPrompt = settings.systemPrompt || 'Estrai conoscenza tecnica da questa sessione. Rispondi SOLO con una pagina Markdown.';
+
+    let userContent = `Progetto: ${projectName}\n\n`;
+    if (sourceFiles.length > 0) {
+      userContent += `--- FILE SORGENTE TOCCATI (${sourceFiles.length} file) ---\n`;
+      for (const f of sourceFiles) {
+        const shortPath = f.path.split(path.sep).slice(-3).join('/');
+        userContent += `\n### ${shortPath}\n\`\`\`\n${f.content}\n\`\`\`\n`;
+      }
+      userContent += '\n';
+    }
+    userContent += `--- SESSIONE ---\n${sessionText}`;
 
     const response = await client.chat.completions.create({
       model,
       max_tokens: 2048,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user',   content: `Progetto: ${projectName}\n\n--- SESSIONE ---\n${sessionText}` },
+        { role: 'user',   content: userContent },
       ],
     });
 
