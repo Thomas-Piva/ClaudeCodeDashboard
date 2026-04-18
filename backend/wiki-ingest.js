@@ -8,6 +8,7 @@ import OpenAI from 'openai';
 import Database from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 const DB_PATH            = path.join(import.meta.dirname, 'agentsview.db');
 const SETTINGS_FILE      = path.join(import.meta.dirname, 'wiki-settings.json');
@@ -104,8 +105,24 @@ function isTemplateContent(markdown) {
   return TEMPLATE_SIGNALS.filter(s => markdown.includes(s)).length >= 3;
 }
 
-function normalizeHeading(h) {
-  return h.replace(/^#+\s*/, '').toLowerCase().trim();
+function extractSections(markdown) {
+  const sections = [];
+  let heading = null;
+  let body = [];
+  const flush = () => {
+    if (heading !== null) sections.push({ heading, body: body.join('\n').trim() });
+  };
+  for (const line of markdown.split('\n')) {
+    if (/^#{2,3} .+/.test(line)) { flush(); heading = line; body = []; }
+    else if (heading !== null) body.push(line);
+  }
+  flush();
+  return sections;
+}
+
+function sectionHash({ heading, body }) {
+  const normalized = (heading + '\n' + body).toLowerCase().replace(/\s+/g, ' ').trim();
+  return crypto.createHash('sha1').update(normalized).digest('hex');
 }
 
 function writeWikiPage(wikiPath, category, topic, markdown) {
@@ -117,19 +134,12 @@ function writeWikiPage(wikiPath, category, topic, markdown) {
 
   if (fs.existsSync(file)) {
     const existing = fs.readFileSync(file, 'utf8');
-    const existingNorm = new Set(
-      (existing.match(/^#{2,3} .+/gm) || []).map(normalizeHeading)
-    );
-    const newHeadings = (markdown.match(/^#{2,3} .+/gm) || [])
-      .filter(h => !existingNorm.has(normalizeHeading(h)));
-    if (newHeadings.length === 0) return;
-    const newSections = newHeadings.map(h => {
-      const idx  = markdown.indexOf(h);
-      const next = markdown.indexOf('\n## ', idx + 1);
-      return markdown.slice(idx, next === -1 ? undefined : next).trim();
-    }).join('\n\n');
-    fs.appendFileSync(file, '\n\n---\n\n' + newSections);
-    console.log(`📖 wiki updated: ${category}/${topic}.md`);
+    const existingHashes = new Set(extractSections(existing).map(sectionHash));
+    const newSections = extractSections(markdown).filter(s => !existingHashes.has(sectionHash(s)));
+    if (newSections.length === 0) return;
+    const appendText = newSections.map(s => s.heading + '\n' + s.body).join('\n\n');
+    fs.appendFileSync(file, '\n\n---\n\n' + appendText);
+    console.log(`📖 wiki updated: ${category}/${topic}.md (+${newSections.length} sezioni)`);
   } else {
     fs.writeFileSync(file, markdown);
     console.log(`📖 wiki created: ${category}/${topic}.md`);
@@ -188,7 +198,7 @@ export async function wikiIngest(sessionId, projectName) {
     const category = categorize(projectName, settings);
     const topic    = topicFromProject(projectName);
     writeWikiPage(settings.wikiPath, category, topic, markdown);
-  } catch {
-    // best-effort — never block indexing
+  } catch (e) {
+    console.warn(`[wiki-ingest] ${projectName}: ${e.message}`);
   }
 }
