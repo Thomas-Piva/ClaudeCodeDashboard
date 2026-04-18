@@ -7,7 +7,7 @@ import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { ClaudeSessionWatcher } from './claude-watcher.js';
 import { discoverFromRoots, loadScanPaths, saveScanPaths } from './path-scanner.js';
 import { listSessions, getSession, getMessages, searchMessages, getAnalytics } from './db.js';
@@ -816,14 +816,15 @@ app.delete('/api/admin/wiki-settings/categories/:name', (req, res) => {
 });
 
 app.post('/api/admin/wiki-backfill', (req, res) => {
-  const { spawn } = require('child_process');
   const backfillScript = path.join(__dirname, 'wiki-backfill.js');
   const child = spawn(process.execPath, ['--env-file=.env', backfillScript], {
     cwd: __dirname,
-    detached: true,
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
-  child.unref();
+  child.stdout.on('data', d => process.stdout.write(`[backfill] ${d}`));
+  child.stderr.on('data', d => process.stderr.write(`[backfill] ${d}`));
+  child.on('error', err => console.error(`[backfill] spawn error: ${err.message}`));
+  child.on('exit', code => console.log(`[backfill] exited with code ${code}`));
   res.json({ success: true, message: 'Backfill avviato in background' });
 });
 
