@@ -125,7 +125,21 @@ function sectionHash({ heading, body }) {
   return crypto.createHash('sha1').update(normalized).digest('hex');
 }
 
+function validateOutput(markdown) {
+  if (!markdown.trim()) return { ok: false, reason: 'empty response' };
+  if (markdown.length < 150) return { ok: false, reason: `too short (${markdown.length} char)` };
+  const sections = extractSections(markdown);
+  if (sections.length === 0) return { ok: false, reason: 'no ## headings' };
+  if (!sections.some(s => s.body.length >= 50)) return { ok: false, reason: 'all sections empty' };
+  return { ok: true };
+}
+
 function writeWikiPage(wikiPath, category, topic, markdown) {
+  const validation = validateOutput(markdown);
+  if (!validation.ok) {
+    console.warn(`[wiki-ingest] skipped ${category}/${topic}.md — ${validation.reason}`);
+    return;
+  }
   if (isTemplateContent(markdown)) return;
 
   const dir  = path.join(wikiPath, category);
@@ -193,8 +207,6 @@ export async function wikiIngest(sessionId, projectName) {
     });
 
     const markdown = response.choices[0]?.message?.content ?? '';
-    if (!markdown.trim() || !markdown.includes('#')) return;
-
     const category = categorize(projectName, settings);
     const topic    = topicFromProject(projectName);
     writeWikiPage(settings.wikiPath, category, topic, markdown);

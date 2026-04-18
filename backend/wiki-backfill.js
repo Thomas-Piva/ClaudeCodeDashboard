@@ -204,8 +204,22 @@ function sectionHash({ heading, body }) {
   return crypto.createHash('sha1').update(normalized).digest('hex');
 }
 
+function validateOutput(markdown) {
+  if (!markdown.trim()) return { ok: false, reason: 'empty response' };
+  if (markdown.length < 150) return { ok: false, reason: `too short (${markdown.length} char)` };
+  const sections = extractSections(markdown);
+  if (sections.length === 0) return { ok: false, reason: 'no ## headings' };
+  if (!sections.some(s => s.body.length >= 50)) return { ok: false, reason: 'all sections empty' };
+  return { ok: true };
+}
+
 // ── Write / merge wiki page ────────────────────────────────────────────────
 function writeWikiPage(wikiPath, category, topic, markdown) {
+  const validation = validateOutput(markdown);
+  if (!validation.ok) {
+    console.log(`  ⚠ skipped: ${topic}.md — ${validation.reason}`);
+    return;
+  }
   if (isTemplateContent(markdown)) {
     console.log(`  ⚠ skipped (template content): ${topic}.md`);
     return;
