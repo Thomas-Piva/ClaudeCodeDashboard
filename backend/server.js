@@ -13,6 +13,7 @@ import { discoverFromRoots, loadScanPaths, saveScanPaths } from './path-scanner.
 import { listSessions, getSession, getMessages, searchMessages, getAnalytics } from './db.js';
 import { indexSession } from './indexer.js';
 import { sendTelegram } from './telegram.js';
+import { wikiIngest } from './wiki-ingest.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -813,6 +814,23 @@ app.delete('/api/admin/wiki-settings/categories/:name', (req, res) => {
   settings.categories = settings.categories.filter(c => c.name !== req.params.name);
   saveWikiSettings(settings);
   res.json({ success: true, categories: settings.categories });
+});
+
+function cwdToProjectName(cwd) {
+  return cwd.replace(/\//g, '\\').replace(/[^a-zA-Z0-9]/g, '-');
+}
+
+app.post('/api/admin/wiki-ingest-latest', async (req, res) => {
+  const { cwd } = req.body || {};
+  if (!cwd) return res.status(400).json({ error: 'cwd required' });
+  const projectName = cwdToProjectName(cwd);
+  const sessions = listSessions({ project: projectName, limit: 1 });
+  if (sessions.length === 0) return res.status(404).json({ error: `Nessuna sessione trovata per: ${projectName}` });
+  const session = sessions[0];
+  wikiIngest(session.id, projectName)
+    .then(() => console.log(`[wiki-ingest-latest] done: ${projectName}`))
+    .catch(err => console.error(`[wiki-ingest-latest] error: ${err.message}`));
+  res.json({ success: true, project: projectName, sessionId: session.id });
 });
 
 app.post('/api/admin/wiki-backfill', (req, res) => {
