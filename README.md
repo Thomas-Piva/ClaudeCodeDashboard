@@ -113,35 +113,39 @@ Lo script analizza i blocchi `tool_use` nel file `.jsonl` raw della sessione ed 
 
 ### Aggiornamento On-Demand: `/aggiornawiki`
 
-La wiki **non si aggiorna automaticamente**. Sei tu a decidere quando documentare una sessione.
+La wiki **non si aggiorna automaticamente**. Sei tu a decidere quando e cosa documentare.
 
-Installa il comando slash una volta sola:
+Il comando è uno slash command di Claude Code — Claude scrive direttamente nella wiki usando i suoi tool, senza chiamate a provider LLM esterni.
+
+**Comportamento:**
+- Se la sezione che vuoi documentare **non esiste** → viene creata con una riga cronologia
+- Se la sezione **esiste già** → Claude la riscrive con le info aggiornate e aggiunge una voce alla cronologia
+
+Ogni sezione ha un titolo semantico stabile e una riga di audit trail:
+
+```markdown
+## Logica calcolo commissioni
+
+La funzione applica 2% se il cliente ha pagato entro 30gg...
+
+> *Cronologia: 2026-04-19 attilio.pregnolato — prima stesura · 2026-04-21 mario.rossi — aggiunto caso fornitore estero*
+```
+
+**Installazione** (una volta sola — vedi `/guida` nella dashboard per il testo completo del comando):
 
 ```bash
-# Crea la directory comandi (se non esiste)
 mkdir -p ~/.claude/commands
-
-# Crea il file comando
-cat > ~/.claude/commands/aggiornawiki.md << 'EOF'
-Aggiorna la wiki con i contenuti della sessione corrente.
-
-Esegui questo comando bash e mostra il risultato:
-
-```bash
-curl -s -X POST http://localhost:3001/api/admin/wiki-ingest-latest \
-  -H "Content-Type: application/json" \
-  -d "{\"cwd\": \"$(pwd)\"}"
+# copia il contenuto di GUIDA-COLLEGHI.md nella sezione "Installa il comando /aggiornawiki"
 ```
 
-Se la risposta contiene "success": true, di' all'utente che la wiki è stata aggiornata.
-Se contiene un errore, mostralo chiaramente.
-EOF
+**Utilizzo:**
+
+```
+/aggiornawiki la logica di validazione in BNEG0112: controlla prima
+il flag ATTIVO in CLIENTI, poi la scadenza in CONTRATTI
 ```
 
-Da quel momento, in qualsiasi sessione Claude Code scrivi `/aggiornawiki` e Claude:
-1. Chiama `POST /api/admin/wiki-ingest-latest` con il `cwd` corrente
-2. Il backend trova l'ultima sessione indicizzata per quel progetto
-3. Genera o aggiorna la pagina wiki del modulo
+Claude determina il file dalla directory corrente (`BIZ2017/bneg0112.md`), legge il file se esiste, aggiorna o crea la sezione, firma con data e utente.
 
 ### Backfill Completo
 
@@ -589,11 +593,12 @@ La sessione corrente deve essere stata indicizzata almeno una volta. Verifica ch
 <small>
 
 **v7.2.0** (2026-04-19) — Wiki on-demand
-- Rimossa ingestion automatica dal watcher: la wiki si aggiorna solo quando vuoi tu
-- Slash command `/aggiornawiki`: genera/aggiorna la wiki della sessione corrente da qualsiasi progetto
-- Endpoint `POST /api/admin/wiki-ingest-latest`: ingest by cwd, trova l'ultima sessione indicizzata
+- `/aggiornawiki`: Claude scrive direttamente nella wiki senza LLM esterno — aggiorna sezioni esistenti in-place o crea nuove, con cronologia `data · utente · descrizione modifica`
 - Struttura wiki speculare ai path reali: `BIZ2017/modulo.md`, `ProgettiEgm/modulo.md`, ecc.
-- Dedup heading-based (normalizzato): niente più sezioni duplicate da riformulazioni LLM
+- Wiki condivisa su rete: `\\egmsql\EGMStruttura\Wiki-Egm`
+- Pagina `/guida` nella dashboard: installazione step-by-step per i colleghi
+- Rimossa ingestion automatica dal watcher: zero LLM call in background
+- Dedup heading-based: niente più sezioni duplicate da riformulazioni LLM
 
 **v7.1.0** (2026-04-18) — Wiki: source files enrichment
 - Backfill e ingest leggono i file sorgente realmente toccati nelle sessioni (via `tool_use` del JSONL raw)
