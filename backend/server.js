@@ -817,7 +817,11 @@ app.delete('/api/admin/wiki-settings/categories/:name', (req, res) => {
 });
 
 function cwdToProjectName(cwd) {
-  return cwd.replace(/\//g, '\\').replace(/[^a-zA-Z0-9]/g, '-');
+  // Git Bash returns /c/BIZ2017/BNEG0112 — convert to Windows path first
+  const winPath = cwd
+    .replace(/^\/([a-zA-Z])\//, (_, d) => `${d.toUpperCase()}:\\`)
+    .replace(/\//g, '\\');
+  return winPath.replace(/[^a-zA-Z0-9]/g, '-');
 }
 
 app.post('/api/admin/wiki-ingest-latest', async (req, res) => {
