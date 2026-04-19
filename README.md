@@ -4,16 +4,14 @@
 
 # Dashboard Claude Code
 
-**Monitoraggio in tempo reale · Ricerca full-text · Analytics · Notifiche Telegram · Wiki automatica**
+**Monitoraggio in tempo reale · Ricerca full-text · Analytics · Notifiche Telegram · Wiki on-demand**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/react-18.2.0-blue)](https://reactjs.org/)
-[![Version](https://img.shields.io/badge/version-7.0.0-purple)](https://github.com/Attilio81/ClaudeCodeDashboard)
+[![Version](https://img.shields.io/badge/version-7.2.0-purple)](https://github.com/Attilio81/ClaudeCodeDashboard)
 
-*Monitora N sessioni Claude Code parallele, cerca nei messaggi passati, analizza i pattern di utilizzo, ricevi notifiche push su Telegram, e genera automaticamente una knowledge base Markdown dal tuo storico.*
-
-<img src="Altro/schema-simple.png" alt="Come funziona" width="700" />
+*Monitora N sessioni Claude Code parallele, cerca nei messaggi passati, analizza i pattern di utilizzo, ricevi notifiche push su Telegram, e genera una knowledge base Markdown dal tuo storico quando vuoi tu.*
 
 [Avvio Rapido](#-avvio-rapido) • [Funzionalità](#-funzionalità) • [Wiki EGM](#-wiki-egm) • [Come Funziona](#-come-funziona) • [Configurazione](#-configurazione) • [API](#-api-reference) • [Troubleshooting](#-troubleshooting)
 
@@ -67,7 +65,7 @@ Pannello accessibile con **⚙ ADMIN** nell'header:
 - Aggiungi / rimuovi cartelle radice di scansione
 - **Riscansiona Ora** — trova nuovi progetti senza riavviare il server
 - Ripristina percorsi esclusi
-- **Wiki EGM** — configura e lancia la generazione della knowledge base
+- **Wiki EGM** — configura provider LLM e lancia il backfill completo
 
 ---
 
@@ -81,29 +79,90 @@ Col tempo si accumulano centinaia di sessioni che contengono decisioni architett
 
 ### La Soluzione
 
-Due componenti cooperano:
+Due script cooperano:
 
 | File | Ruolo |
 |------|-------|
-| `backend/wiki-backfill.js` | Scansiona tutto il DB, raggruppa per progetto, legge i **file sorgente realmente toccati** nelle sessioni e chiama un LLM per generare pagine Markdown |
-| `backend/wiki-ingest.js` | Hook in `indexer.js` — aggiorna la wiki incrementalmente ad ogni nuova sessione, includendo i file sorgente toccati |
+| `backend/wiki-backfill.js` | Scansiona tutto il DB, raggruppa per progetto, legge i file sorgente realmente toccati nelle sessioni e chiama un LLM per generare pagine Markdown |
+| `backend/wiki-ingest.js` | Genera/aggiorna la pagina wiki di una singola sessione — chiamato on-demand via `/aggiornawiki` |
 
 Le pagine Markdown sono compatibili con Obsidian (`[[wikilinks]]`, tabelle, blocchi codice).
 
+### Struttura Cartelle
+
+La wiki rispecchia la struttura dei tuoi progetti: la cartella corrisponde alla root del progetto, il file al modulo specifico.
+
+```
+MyWiki/
+├── BIZ2017/
+│   ├── bneg0007.md
+│   ├── bneg0128.md
+│   └── bnegas05.md
+├── ProgettiEgm/
+│   ├── controllopadordini.md
+│   └── gestionaleapi.md
+├── Progetti-Pilota/
+│   └── agentevendite.md
+└── BUSEXP/
+    └── bneg0013.md
+```
+
+### Come vengono scelti i file sorgente
+
+Lo script analizza i blocchi `tool_use` nel file `.jsonl` raw della sessione ed estrae i `file_path` dei tool `Read`, `Edit` e `Write` effettivamente usati da Claude — solo i file realmente toccati, non l'intera codebase.
+
+### Aggiornamento On-Demand: `/aggiornawiki`
+
+La wiki **non si aggiorna automaticamente**. Sei tu a decidere quando documentare una sessione.
+
+Installa il comando slash una volta sola:
+
+```bash
+# Crea la directory comandi (se non esiste)
+mkdir -p ~/.claude/commands
+
+# Crea il file comando
+cat > ~/.claude/commands/aggiornawiki.md << 'EOF'
+Aggiorna la wiki con i contenuti della sessione corrente.
+
+Esegui questo comando bash e mostra il risultato:
+
+```bash
+curl -s -X POST http://localhost:3001/api/admin/wiki-ingest-latest \
+  -H "Content-Type: application/json" \
+  -d "{\"cwd\": \"$(pwd)\"}"
+```
+
+Se la risposta contiene "success": true, di' all'utente che la wiki è stata aggiornata.
+Se contiene un errore, mostralo chiaramente.
+EOF
+```
+
+Da quel momento, in qualsiasi sessione Claude Code scrivi `/aggiornawiki` e Claude:
+1. Chiama `POST /api/admin/wiki-ingest-latest` con il `cwd` corrente
+2. Il backend trova l'ultima sessione indicizzata per quel progetto
+3. Genera o aggiorna la pagina wiki del modulo
+
+### Backfill Completo
+
+Prima volta o dopo molte sessioni accumulate:
+
+```bash
+node --env-file=.env backend/wiki-backfill.js
+```
+
+Oppure dal pannello **Admin → Wiki EGM → GENERA WIKI DA SESSIONI**.
+
 ### Configurazione (`wiki-settings.json`)
 
-Tutta la struttura è parametrizzata in `backend/wiki-settings.json` — nessun codice da modificare:
+Tutta la configurazione è in `backend/wiki-settings.json`:
 
 ```json
 {
   "wikiPath": "C:\\MyWiki",
-  "categories": [
-    { "name": "backend", "label": "Backend", "match": ["BackendProject", "API"] },
-    { "name": "frontend", "label": "Frontend", "match": ["FrontendApp"] }
-  ],
-  "defaultCategory": "generale",
-  "sessionFilter": ["BackendProject", "FrontendApp"],
+  "sessionFilter": ["BIZ2017", "ProgettiEgm", "BUSEXP"],
   "excludeFilter": ["observer", "Dashboard"],
+  "sourceExtensions": [".vb", ".cs", ".ts", ".js", ".py", ".jsx", ".tsx"],
   "systemPrompt": "Sei un agente di estrazione della conoscenza tecnica...",
   "provider": {
     "baseURL": "https://api.deepseek.com",
@@ -116,13 +175,11 @@ Tutta la struttura è parametrizzata in `backend/wiki-settings.json` — nessun 
 | Campo | Descrizione |
 |-------|-------------|
 | `wikiPath` | Cartella Obsidian di destinazione |
-| `categories` | Sottocartelle wiki con pattern di match sui nomi progetto |
-| `defaultCategory` | Categoria di fallback se nessun pattern combacia |
-| `sessionFilter` | Pattern per includere sessioni nel backfill |
-| `excludeFilter` | Pattern per escludere sessioni (es. observer, dashboard) |
-| `systemPrompt` | Prompt personalizzato per il modello — adattabile al dominio |
+| `sessionFilter` | Pattern per includere sessioni (match parziale sul nome progetto) |
+| `excludeFilter` | Pattern per escludere sessioni |
+| `sourceExtensions` | Estensioni file sorgente da leggere e passare all'LLM |
+| `systemPrompt` | Prompt personalizzato per il modello |
 | `provider` | Configurazione LLM: URL, modello, variabile env della API key |
-| `sourceExtensions` | Estensioni file sorgente da leggere (default: `.vb .cs .ts .js .py .jsx .tsx .java .go`) |
 
 ### Provider LLM
 
@@ -131,37 +188,23 @@ Tutti i provider usano l'interfaccia OpenAI-compatibile:
 | Provider | `baseURL` | `model` | `apiKeyEnv` |
 |----------|-----------|---------|-------------|
 | DeepSeek V3 | `https://api.deepseek.com` | `deepseek-chat` | `DEEPSEEK_API_KEY` |
-| LM Studio | `http://localhost:1234/v1` | nome modello caricato | — |
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o`, `gpt-4o-mini` | `OPENAI_API_KEY` |
+| LM Studio | `http://localhost:1234/v1` | nome modello caricato | — |
 | Ollama | `http://localhost:11434/v1` | `llama3`, `mistral`, … | — |
 
-> **Modello locale consigliato:** Qwen2.5-Coder 7B Q4 (Mac M4 base) o 14B Q4 (M4 Pro) — ottimo rapporto qualità/velocità per l'estrazione di conoscenza tecnica da codice.
+Dall'**Admin → Wiki EGM → Provider LLM**: preset con un click + campi manuali.
 
-Dall'**Admin → Wiki EGM → Provider LLM**: preset con un click + campi manuali per URL server, modello e variabile env della key.
+### Wiki Condivisa in Rete
 
-### Utilizzo
-
-**Backfill completo** (prima volta o dopo molte sessioni):
-
-```bash
-node --env-file=.env backend/wiki-backfill.js
-```
-
-Oppure dal pannello **Admin → Wiki EGM → GENERA WIKI DA SESSIONI**.
-
-**Ingestion incrementale**: automatica — `wiki-ingest.js` si aggancia all'indexer e aggiorna la wiki ad ogni nuova sessione, leggendo anche i file sorgente toccati durante la sessione. Funziona anche se il terminale viene chiuso brutalmente: il watcher (`chokidar`) rileva la modifica del file `.jsonl` indipendentemente dall'hook `Stop`, quindi la sessione viene indicizzata e la wiki aggiornata comunque.
-
-**Come vengono scelti i file sorgente**: lo script analizza i blocchi `tool_use` nel file `.jsonl` raw della sessione ed estrae i `file_path` dei tool `Read`, `Edit` e `Write` effettivamente usati da Claude — solo i file realmente toccati, non l'intera codebase.
+Punta `wikiPath` a una cartella di rete (`\\\\SERVER\\Wiki\\EGM-Wiki`) e ogni collega che usa la dashboard alimenta la stessa knowledge base. Nessun conflitto: ogni macchina lavora su progetti diversi, ogni `/aggiornawiki` scrive file diversi.
 
 ---
 
 ## Come Funziona
 
-<img src="Altro/schema.png" alt="Architettura tecnica" width="860" />
-
 ### Claude Code Hooks
 
-La dashboard si integra con il sistema di hooks di Claude Code a livello utente — gli hook si attivano per **tutti** i progetti Claude Code sulla macchina.
+La dashboard si integra con il sistema di hooks di Claude Code a livello utente — gli hook si attivano per **tutti** i progetti sulla macchina.
 
 ```
 ~/.claude/settings.json          ← hook registrati a livello utente
@@ -199,7 +242,7 @@ C:\Work\           ← cartella radice
 
 1. L'**indexer** legge il file `.jsonl` ed estrae messaggi, tool call, timestamp
 2. Scrive in `backend/agentsview.db` (SQLite con FTS5)
-3. Il **watcher** re-indicizza in background (`setImmediate`) ad ogni cambio file
+3. Il **watcher** re-indicizza in background ad ogni cambio file
 4. La ricerca full-text interroga la tabella FTS5 — risultati istantanei
 
 ### Stato Intelligente
@@ -236,7 +279,7 @@ npm install
 cd backend && npm install
 cd ../frontend && npm install && cd ..
 
-# 3. (Opzionale) Configura Telegram e DeepSeek
+# 3. (Opzionale) Configura Telegram e LLM per wiki
 cp backend/.env.example backend/.env
 # Modifica backend/.env con i tuoi token
 
@@ -274,10 +317,10 @@ chmod +x ~/.claude/hooks/hook-event.sh
 ```json
 {
   "hooks": {
-    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }],
-    "PreToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }],
+    "Stop":        [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }],
+    "PreToolUse":  [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }],
     "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }],
-    "Notification": [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }]
+    "Notification":[{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }]
   }
 }
 ```
@@ -291,17 +334,17 @@ chmod +x ~/.claude/hooks/hook-event.sh
 ### Cartelle radice (`backend/scan-paths.json`)
 
 ```json
-["C:\\Projects\\MyApp", "C:\\Work\\Clients"]
+["C:\\BIZ2017", "C:\\ProgettiEgm", "C:\\BUSEXP"]
 ```
 
 Oppure usa l'**Area Admin** nell'interfaccia.
 
-### Notifiche Telegram + Wiki (`backend/.env`)
+### Telegram + Wiki (`backend/.env`)
 
 ```env
 TELEGRAM_TOKEN=<token-del-bot>
 TELEGRAM_CHAT_ID=<chat-id>
-DEEPSEEK_API_KEY=<chiave-deepseek>   # per generazione wiki
+DEEPSEEK_API_KEY=<chiave-deepseek>
 ```
 
 Come ottenere i valori Telegram:
@@ -309,7 +352,7 @@ Come ottenere i valori Telegram:
 2. Invia `/start` al bot dalla chat dove vuoi ricevere le notifiche
 3. Visita `https://api.telegram.org/bot<TOKEN>/getUpdates` per leggere il `chat.id`
 
-Se `.env` non è presente, Telegram e wiki cloud vengono silenziosamente disabilitati.
+Se `.env` non è presente, Telegram e wiki vengono silenziosamente disabilitati.
 
 ### Percorsi esclusi
 
@@ -351,13 +394,13 @@ DashboardClaudeCode/
 ├── backend/
 │   ├── server.js              # Express + WebSocket + API REST + /api/hook-event
 │   ├── claude-watcher.js      # Monitora sessioni Claude Code in tempo reale
-│   ├── indexer.js             # Parser JSONL → SQLite FTS5 (+ hook wiki-ingest)
+│   ├── indexer.js             # Parser JSONL → SQLite FTS5
 │   ├── db.js                  # SQLite layer (FTS5, schema, query helpers)
 │   ├── telegram.js            # Helper Telegram Bot API (native fetch)
 │   ├── path-scanner.js        # Discovery da cartelle radice
 │   ├── wiki-backfill.js       # Genera wiki da tutte le sessioni (backfill)
-│   ├── wiki-ingest.js         # Aggiornamento incrementale wiki per sessione
-│   ├── wiki-settings.json     # Configurazione wiki (path, categorie, provider, prompt)
+│   ├── wiki-ingest.js         # Genera/aggiorna wiki per una singola sessione
+│   ├── wiki-settings.json     # Configurazione wiki (path, filtri, provider, prompt)
 │   ├── scan-paths.json        # Cartelle radice da scansionare
 │   ├── excluded-paths.json    # Percorsi esclusi dal monitoraggio
 │   ├── .env                   # Credenziali Telegram + LLM (gitignored)
@@ -366,7 +409,7 @@ DashboardClaudeCode/
 │   └── package.json
 ├── frontend/
 │   ├── src/
-│   │   ├── App.jsx                    # Router shell (BrowserRouter)
+│   │   ├── App.jsx
 │   │   ├── pages/
 │   │   │   ├── Dashboard.jsx          # Layout 3 colonne (Attivi/Check/Inattivi)
 │   │   │   ├── Session.jsx            # Viewer sessione + export HTML
@@ -452,7 +495,8 @@ DashboardClaudeCode/
 | `POST` | `/api/admin/wiki-settings` | Salva impostazioni wiki |
 | `POST` | `/api/admin/wiki-settings/categories` | Aggiungi categoria |
 | `DELETE` | `/api/admin/wiki-settings/categories/:name` | Rimuovi categoria |
-| `POST` | `/api/admin/wiki-backfill` | Avvia backfill in background |
+| `POST` | `/api/admin/wiki-backfill` | Avvia backfill completo in background |
+| `POST` | `/api/admin/wiki-ingest-latest` | Ingest sessione corrente (body: `{ "cwd": "C:\\..." }`) |
 
 ---
 
@@ -523,11 +567,18 @@ Windows blocca `SetForegroundWindow` dai processi in background. La dashboard us
 </details>
 
 <details>
+<summary><b>Wiki: `/aggiornawiki` risponde "Nessuna sessione trovata"</b></summary>
+
+La sessione corrente deve essere stata indicizzata almeno una volta. Verifica che il watcher sia attivo e che il progetto sia nelle `scan-paths.json`. Prova ad aspettare qualche secondo dopo aver lavorato nella sessione.
+
+</details>
+
+<details>
 <summary><b>Wiki backfill non genera pagine</b></summary>
 
-1. Verifica che `DEEPSEEK_API_KEY` sia valorizzata in `backend/.env` (o la variabile configurata nel provider)
+1. Verifica che la variabile API key sia valorizzata in `backend/.env`
 2. Controlla che `sessionFilter` in `wiki-settings.json` includa pattern che matchano i tuoi progetti
-3. Lancia manualmente con `node --env-file=.env backend/wiki-backfill.js` per vedere i log dettagliati
+3. Lancia manualmente con `node --env-file=.env backend/wiki-backfill.js` per vedere i log
 
 </details>
 
@@ -537,17 +588,21 @@ Windows blocca `SetForegroundWindow` dai processi in background. La dashboard us
 
 <small>
 
+**v7.2.0** (2026-04-19) — Wiki on-demand
+- Rimossa ingestion automatica dal watcher: la wiki si aggiorna solo quando vuoi tu
+- Slash command `/aggiornawiki`: genera/aggiorna la wiki della sessione corrente da qualsiasi progetto
+- Endpoint `POST /api/admin/wiki-ingest-latest`: ingest by cwd, trova l'ultima sessione indicizzata
+- Struttura wiki speculare ai path reali: `BIZ2017/modulo.md`, `ProgettiEgm/modulo.md`, ecc.
+- Dedup heading-based (normalizzato): niente più sezioni duplicate da riformulazioni LLM
+
 **v7.1.0** (2026-04-18) — Wiki: source files enrichment
 - Backfill e ingest leggono i file sorgente realmente toccati nelle sessioni (via `tool_use` del JSONL raw)
-- Solo file effettivamente aperti/modificati da Claude — niente rumore da file non correlati
 - `sourceExtensions` configurabile in `wiki-settings.json`
-- Fix categoria `egm-pilots` (match `Progetti-Pilota` con trattino)
 - Prompt più restrittivo: proibisce contenuto inventato, pagina minimale se niente da estrarre
 
 **v7.0.0** (2026-04-17) — Wiki EGM
 - `wiki-backfill.js`: genera pagine Markdown da tutte le sessioni via LLM
-- `wiki-ingest.js`: aggiornamento incrementale, funziona anche con chiusura brutale del terminale
-- `wiki-settings.json`: parametrizzazione completa (categorie, filtri, prompt, provider LLM)
+- `wiki-settings.json`: parametrizzazione completa (filtri, prompt, provider LLM)
 - Admin → Wiki EGM: configurazione dall'interfaccia, preset provider con un click
 - Provider intercambiabili: DeepSeek V3, LM Studio, OpenAI, Ollama
 
@@ -555,7 +610,6 @@ Windows blocca `SetForegroundWindow` dai processi in background. La dashboard us
 - Hook status in tempo reale — nessun polling
 - Notifiche Telegram: `✅ sessione terminata` e `💥 errore Bash`
 - Colonne guidate da hook (priorità su file watcher per 30 min)
-- Badge hook su ProjectCard
 
 **v5.0.0** (2026-04-13) — Search + Analytics + Session Viewer
 - Ricerca full-text `Ctrl+K` su tutte le sessioni (SQLite FTS5)
@@ -566,7 +620,6 @@ Windows blocca `SetForegroundWindow` dai processi in background. La dashboard us
 - Discovery da cartelle radice configurabili
 - Trova finestra terminale via UIAutomation
 - Dark theme — Syne + JetBrains Mono
-- Fix path discovery, PID tracking, slug-based tab filtering
 
 **v1.0 – v3.0**
 - v3.0: Auto-discovery dinamico, timeout intelligenti, storico sessione
