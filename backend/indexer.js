@@ -1,6 +1,5 @@
 import fs from 'fs';
 import { upsertSession, sessionIdFromPath, replaceMessages } from './db.js';
-import { wikiIngest } from './wiki-ingest.js';
 
 /**
  * Parse Claude Code JSONL file and index into SQLite.
@@ -105,9 +104,6 @@ export function indexSession(filePath, projectName) {
     replaceMessages(sessionId, messages);
 
     console.log(`📚 Indexed: ${projectName} — ${messages.length} messages`);
-
-    // Async wiki update — best-effort, never blocks indexing
-    setImmediate(() => wikiIngest(sessionId, projectName));
   } catch (err) {
     console.error(`❌ indexSession error (${filePath}): ${err.message}`);
   }
