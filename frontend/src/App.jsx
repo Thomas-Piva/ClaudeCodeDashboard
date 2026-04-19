@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, NavLink, useNavigate } from 'react-router
 import Dashboard from './pages/Dashboard';
 import Analytics from './pages/Analytics';
 import Session from './pages/Session';
+import Guida from './pages/Guida';
 import SearchBar from './components/SearchBar';
 
 function AppShell() {
@@ -43,6 +44,7 @@ function AppShell() {
       }}>
         <NavLink to="/" end style={({ isActive }) => ({ ...navStyle, color: isActive ? 'var(--text-bright)' : 'var(--text-secondary)', borderColor: isActive ? 'var(--border-mid)' : 'var(--border-subtle)' })}>DASHBOARD</NavLink>
         <NavLink to="/analytics" style={({ isActive }) => ({ ...navStyle, color: isActive ? 'var(--text-bright)' : 'var(--text-secondary)', borderColor: isActive ? 'var(--border-mid)' : 'var(--border-subtle)' })}>ANALYTICS</NavLink>
+        <NavLink to="/guida" style={({ isActive }) => ({ ...navStyle, color: isActive ? 'var(--text-bright)' : 'var(--text-secondary)', borderColor: isActive ? 'var(--border-mid)' : 'var(--border-subtle)' })}>GUIDA</NavLink>
         <button
           onClick={() => setShowSearch(true)}
           style={{ ...navStyle, cursor: 'pointer', border: '1px solid var(--border-subtle)', background: 'rgba(255,255,255,0.04)' }}
@@ -56,6 +58,7 @@ function AppShell() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/session/:id" element={<Session />} />
+        <Route path="/guida" element={<Guida />} />
       </Routes>
     </div>
   );
