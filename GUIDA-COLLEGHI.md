@@ -8,7 +8,7 @@ Questa guida ti permette di collegare il tuo Claude Code alla dashboard condivis
 
 - **Dashboard** su `http://localhost:5173` — vedi tutte le tue sessioni Claude Code attive, le cerchi, le esporti
 - **Notifiche Telegram** — ricevi un messaggio quando una sessione finisce o va in errore
-- **Wiki condivisa** su `\\egmsql\EGMStruttura\Wiki-Egm` — documentazione tecnica dei moduli, aggiornata da tutti i colleghi con `/aggiornawiki`
+- **Wiki condivisa** su `\\egmsql\EGMStruttura\Wiki-Egm` — documentazione tecnica dei moduli, aggiornata da tutti i colleghi con `/aggiornawiki` (changelog) e `/aggiornamanuale` (manuale progetto)
 
 ---
 
@@ -102,59 +102,22 @@ chmod +x ~/.claude/hooks/hook-event.sh
 
 ---
 
-## 7. Installa il comando `/aggiornawiki`
+## 7. Comandi wiki `/aggiornawiki` e `/aggiornamanuale`
 
-Questo comando ti permette di scrivere direttamente nella wiki condivisa da qualsiasi sessione Claude Code.
+I comandi sono già inclusi nel repository in `.claude/commands/` — **non serve installarli manualmente**.
 
-```bash
-mkdir -p ~/.claude/commands
+Claude Code li carica automaticamente quando lavori in questa cartella o in qualsiasi sottocartella del repo.
 
-cat > ~/.claude/commands/aggiornawiki.md << 'EOF'
-Devi scrivere o aggiornare una pagina nella wiki Obsidian del progetto corrente.
+| Comando | Dove scrive | Quando usarlo |
+|---------|-------------|---------------|
+| `/aggiornawiki` | `Wiki/{cartella}/{progetto}/aggiornamenti/YYYY-MM-DD.md` | Changelog di sessione — cosa hai fatto e perché |
+| `/aggiornamanuale` | `Wiki/{cartella}/{progetto}.md` | Manuale del progetto — logiche, architettura, procedure |
 
-**Passaggio 1 — Recupera configurazione wiki**
-
-Esegui:
-```bash
-curl -s http://localhost:3001/api/admin/wiki-settings
-```
-Leggi il campo `wikiPath` dalla risposta.
-
-**Passaggio 2 — Determina il file di destinazione**
-
-Dal cwd corrente (esegui `pwd` se non lo conosci), calcola:
-- Rimuovi il prefisso drive (`/c/` → `C:\`, oppure già Windows)
-- Cartella wiki = tutto tranne l'ultimo componente del path (es. `/c/BIZ2017/BNEG0112` → cartella `BIZ2017`)
-- File wiki = ultimo componente lowercase + `.md` (es. `bneg0112.md`)
-- Percorso completo: `{wikiPath}/{cartella}/{file}`
-
-**Passaggio 3 — Contenuto da documentare**
-
-Se l'utente ha già descritto cosa documentare nel messaggio del comando, usalo.
-Se non è specificato, chiedi: "Cosa vuoi documentare? Descrivi la logica, il passaggio o la decisione."
-
-**Passaggio 4 — Scrivi nella wiki**
-
-- Se il file esiste, leggilo prima con Read e aggiungi la nuova sezione (non duplicare heading identici)
-- Se il file non esiste, crealo con intestazione `# NomeModulo` e la sezione — la cartella viene creata automaticamente dal tool Write
-
-**Formato heading obbligatorio:**
-Ogni sezione deve avere data e utente nel titolo:
-```
-## YYYY-MM-DD · utente · Titolo descrittivo
-```
-Ricava l'utente corrente con `whoami` (es. `attilio.pregnolato`).
-Esempio: `## 2026-04-19 · attilio.pregnolato · Logica calcolo commissioni`
-
-**Regole:**
-- Scrivi SOLO quello che l'utente ti ha chiesto di documentare — niente inventato
-- Usa tabelle Markdown per strutture dati, blocchi codice per logica/SQL/VB
-- `###` per dettagli dentro la sezione datata
-- Conferma all'utente il percorso del file aggiornato
-EOF
-```
-
-> Non è necessario riavviare Claude Code — il comando è disponibile immediatamente.
+> Se usi i comandi da un progetto **fuori** da questo repo, copia i file in `~/.claude/commands/`:
+> ```bash
+> cp .claude/commands/aggiornawiki.md ~/.claude/commands/
+> cp .claude/commands/aggiornamanuale.md ~/.claude/commands/
+> ```
 
 ---
 
@@ -170,7 +133,7 @@ Da Obsidian puoi navigare, cercare e leggere tutto quello che il team ha documen
 
 ## Utilizzo quotidiano
 
-Durante una sessione Claude Code, quando hai risolto qualcosa di interessante:
+### Registrare cosa hai fatto in sessione → `/aggiornawiki`
 
 ```
 /aggiornawiki la logica di validazione in BNEG0128 funziona così:
@@ -178,16 +141,16 @@ controlla prima il flag ATTIVO nella tabella CLIENTI, poi verifica
 la scadenza in CONTRATTI — se entrambi ok, procede con l'elaborazione
 ```
 
-Claude scrive automaticamente nella wiki con data e tuo nome utente:
+Crea/aggiorna `Wiki-Egm\BIZ2017\bneg0128\aggiornamenti\2026-04-19.md` con la voce della sessione.
 
-```markdown
-## 2026-04-19 · mario.rossi · Logica validazione BNEG0128
+### Documentare la logica del progetto → `/aggiornamanuale`
 
-Controlla prima il flag ATTIVO nella tabella CLIENTI, poi verifica
-la scadenza in CONTRATTI — se entrambi ok, procede con l'elaborazione.
+```
+/aggiornamanuale il modulo BNEG0128 gestisce la validazione dei contratti:
+query su CLIENTI + CONTRATTI, flag ATTIVO, scadenza, poi elaborazione
 ```
 
-Il file viene creato in `\\egmsql\EGMStruttura\Wiki-Egm\BIZ2017\bneg0128.md` se non esiste, altrimenti la sezione viene aggiunta in fondo.
+Crea/aggiorna `Wiki-Egm\BIZ2017\bneg0128.md` — sezione semantica, aggiornamento in-place se l'argomento esiste già.
 
 ---
 
