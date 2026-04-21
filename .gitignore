@@ -39,4 +39,6 @@ backend/agentsview.db
 
 # Superpowers plans/specs and local Claude settings
 docs/superpowers/
-.claude/
+.claude/*
+!.claude/commands/
+!.claude/commands/**
