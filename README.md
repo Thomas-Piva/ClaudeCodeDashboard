@@ -94,6 +94,7 @@ Claude scrive direttamente nella wiki usando i suoi tool — nessuna chiamata a 
 
 ```
 Wiki-Egm/
+├── index.md                ← MOC aggiornato automaticamente da tutti i comandi
 ├── Sessioni/               ← /aggiornawiki       (cosa è successo)
 │   ├── BIZ2017/
 │   │   └── bneg0112.md
@@ -113,6 +114,16 @@ Wiki-Egm/
 └── Rilasci/                ← /aggiornarilasci    (note di rilascio — IT/sviluppatori)
     └── BIZ2017/
         └── bneg0112-v1.5.md
+```
+
+`index.md` è il Map of Content (MOC) radice — ogni comando lo aggiorna automaticamente aggiungendo il modulo appena documentato con link alle 4 aree:
+
+```markdown
+## BIZ2017
+
+| Modulo   | Architettura | Sessioni | Manuali | Rilasci  |
+|----------|-------------|---------|---------|---------|
+| bneg0112 | [[.../overview\|✓]] | [[...\|✓]] | — | [[...\|v1.5]] |
 ```
 
 ### /analizzacodebase e /aggiornacodebase
