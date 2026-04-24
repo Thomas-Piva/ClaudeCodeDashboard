@@ -13,7 +13,6 @@ import { discoverFromRoots, loadScanPaths, saveScanPaths } from './path-scanner.
 import { listSessions, getSession, getMessages, searchMessages, getAnalytics } from './db.js';
 import { indexSession } from './indexer.js';
 import { sendTelegram } from './telegram.js';
-import { wikiIngest } from './wiki-ingest.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,20 +36,6 @@ function runPsFile(script, timeoutMs, callback) {
 
 // ── File di persistenza ──────────────────────────────────────
 const EXCLUDED_PATHS_FILE = path.join(__dirname, 'excluded-paths.json');
-const WIKI_SETTINGS_FILE  = path.join(__dirname, 'wiki-settings.json');
-
-function loadWikiSettings() {
-  try {
-    if (fs.existsSync(WIKI_SETTINGS_FILE)) {
-      return JSON.parse(fs.readFileSync(WIKI_SETTINGS_FILE, 'utf-8'));
-    }
-  } catch {}
-  return { wikiPath: process.env.WIKI_PATH || 'C:\\EGM-Wiki' };
-}
-
-function saveWikiSettings(settings) {
-  fs.writeFileSync(WIKI_SETTINGS_FILE, JSON.stringify(settings, null, 2));
-}
 
 function loadExcludedPaths() {
   try {
@@ -772,82 +757,6 @@ app.delete('/api/admin/excluded-paths/:index', (req, res) => {
   paths.splice(idx, 1);
   saveExcludedPaths(paths);
   res.json({ success: true, paths });
-});
-
-// ── API: Admin - Wiki Settings ───────────────────────────────
-app.get('/api/admin/wiki-settings', (req, res) => {
-  res.json(loadWikiSettings());
-});
-
-app.post('/api/admin/wiki-settings', (req, res) => {
-  const { wikiPath, categories, defaultCategory, sessionFilter, excludeFilter } = req.body;
-  const current = loadWikiSettings();
-  const updated = {
-    ...current,
-    ...(wikiPath         !== undefined && { wikiPath: wikiPath.trim() }),
-    ...(categories       !== undefined && { categories }),
-    ...(defaultCategory  !== undefined && { defaultCategory }),
-    ...(sessionFilter    !== undefined && { sessionFilter }),
-    ...(excludeFilter    !== undefined && { excludeFilter }),
-  };
-  saveWikiSettings(updated);
-  res.json({ success: true, ...updated });
-});
-
-// add / remove a single category
-app.post('/api/admin/wiki-settings/categories', (req, res) => {
-  const { name, label, match } = req.body;
-  if (!name || !label || !Array.isArray(match)) {
-    return res.status(400).json({ error: 'name, label, match[] richiesti' });
-  }
-  const settings = loadWikiSettings();
-  if (settings.categories.some(c => c.name === name)) {
-    return res.status(400).json({ error: `Categoria "${name}" già esistente` });
-  }
-  settings.categories.push({ name, label, match });
-  saveWikiSettings(settings);
-  res.json({ success: true, categories: settings.categories });
-});
-
-app.delete('/api/admin/wiki-settings/categories/:name', (req, res) => {
-  const settings = loadWikiSettings();
-  settings.categories = settings.categories.filter(c => c.name !== req.params.name);
-  saveWikiSettings(settings);
-  res.json({ success: true, categories: settings.categories });
-});
-
-function cwdToProjectName(cwd) {
-  // Git Bash returns /c/BIZ2017/BNEG0112 — convert to Windows path first
-  const winPath = cwd
-    .replace(/^\/([a-zA-Z])\//, (_, d) => `${d.toUpperCase()}:\\`)
-    .replace(/\//g, '\\');
-  return winPath.replace(/[^a-zA-Z0-9]/g, '-');
-}
-
-app.post('/api/admin/wiki-ingest-latest', async (req, res) => {
-  const { cwd } = req.body || {};
-  if (!cwd) return res.status(400).json({ error: 'cwd required' });
-  const projectName = cwdToProjectName(cwd);
-  const sessions = listSessions({ project: projectName, limit: 1 });
-  if (sessions.length === 0) return res.status(404).json({ error: `Nessuna sessione trovata per: ${projectName}` });
-  const session = sessions[0];
-  wikiIngest(session.id, projectName)
-    .then(() => console.log(`[wiki-ingest-latest] done: ${projectName}`))
-    .catch(err => console.error(`[wiki-ingest-latest] error: ${err.message}`));
-  res.json({ success: true, project: projectName, sessionId: session.id });
-});
-
-app.post('/api/admin/wiki-backfill', (req, res) => {
-  const backfillScript = path.join(__dirname, 'wiki-backfill.js');
-  const child = spawn(process.execPath, ['--env-file=.env', backfillScript], {
-    cwd: __dirname,
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  child.stdout.on('data', d => process.stdout.write(`[backfill] ${d}`));
-  child.stderr.on('data', d => process.stderr.write(`[backfill] ${d}`));
-  child.on('error', err => console.error(`[backfill] spawn error: ${err.message}`));
-  child.on('exit', code => console.log(`[backfill] exited with code ${code}`));
-  res.json({ success: true, message: 'Backfill avviato in background' });
 });
 
 // ── REST: Sessions ───────────────────────────────────
