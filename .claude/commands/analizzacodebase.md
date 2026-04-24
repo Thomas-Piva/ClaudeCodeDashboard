@@ -5,7 +5,7 @@ Devi analizzare l'architettura del progetto corrente e generare documentazione t
 - Dopo un refactor significativo: rigenera tutto da zero
 - NON usare per aggiornamenti incrementali → usa /aggiornawiki
 
-**ATTENZIONE:** questo comando rigenera l'intera cartella `Architettura/{progetto}/`. I file esistenti vengono sovrascritti.
+**ATTENZIONE:** questo comando rigenera l'intera cartella `Architettura/{cartella}/{modulo}/`. I file esistenti per quel modulo vengono sovrascritti. Moduli diversi nella stessa cartella non si toccano.
 
 ---
 
@@ -49,7 +49,7 @@ Per ogni file trovato:
 
 **Passaggio 5 — Scrivi le pagine Architettura**
 
-Per ogni file analizzato, scrivi `{wikiPath}\Architettura\{cartella}\{nome-file}.md`:
+Per ogni file analizzato, scrivi `{wikiPath}\Architettura\{cartella}\{modulo}\{nome-file}.md`:
 
 ````markdown
 ---
@@ -83,7 +83,7 @@ last_analyzed: {YYYY-MM-DD}
 
 **Passaggio 6 — Scrivi l'overview**
 
-Scrivi `{wikiPath}\Architettura\{cartella}\_overview.md`:
+Scrivi `{wikiPath}\Architettura\{cartella}\{modulo}\_overview.md`:
 
 ````markdown
 ---
