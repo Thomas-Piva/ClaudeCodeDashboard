@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Knowledge System EGM — Presentazione</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.0/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.6.0/dist/theme/black.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-dark.min.css">
+  <style>
+    :root {
+      --accent: #00d4aa;
+      --accent2: #7c6af7;
+      --warn: #f59e0b;
+      --bg: #0f0f1a;
+      --card: #1a1a2e;
+      --border: #2a2a4a;
+    }
+
+    .reveal { background: var(--bg); font-family: 'Segoe UI', sans-serif; }
+    .reveal h1, .reveal h2, .reveal h3 { color: var(--accent); text-transform: none; letter-spacing: -0.02em; }
+    .reveal h1 { font-size: 2em; }
+    .reveal h2 { font-size: 1.4em; border-bottom: 2px solid var(--accent); padding-bottom: 0.3em; margin-bottom: 0.6em; }
+    .reveal p, .reveal li { font-size: 0.85em; line-height: 1.6; color: #cbd5e1; }
+    .reveal strong { color: #fff; }
+    .reveal code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; color: var(--accent); }
+    .reveal pre { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; font-size: 0.65em; }
+    .reveal pre code { color: #e2e8f0; padding: 1em; }
+    .reveal section { padding: 10px 40px; }
+
+    /* TITLE SLIDE */
+    .slide-title { text-align: center; }
+    .slide-title h1 { font-size: 2.4em; margin-bottom: 0.2em; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .slide-title .subtitle { font-size: 1em; color: #94a3b8; margin-bottom: 1.5em; }
+    .slide-title .badge { display: inline-block; background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 6px 16px; font-size: 0.65em; color: #64748b; margin: 4px; }
+
+    /* CARDS */
+    .card-grid { display: grid; gap: 14px; margin-top: 0.5em; }
+    .card-grid-2 { grid-template-columns: 1fr 1fr; }
+    .card-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+    .card h3 { color: var(--accent); font-size: 0.85em; margin: 0 0 8px 0; }
+    .card p, .card li { font-size: 0.72em; color: #94a3b8; margin: 4px 0; }
+    .card.accent { border-color: var(--accent); }
+    .card.purple { border-color: var(--accent2); }
+    .card.warn { border-color: var(--warn); }
+
+    /* PROBLEM SLIDE */
+    .problem-list { list-style: none; padding: 0; }
+    .problem-list li { padding: 10px 16px; margin: 8px 0; background: var(--card); border-left: 3px solid #ef4444; border-radius: 0 8px 8px 0; font-size: 0.8em; color: #cbd5e1; }
+    .problem-list li::before { content: "✗ "; color: #ef4444; }
+
+    /* SOLUTION ARROW */
+    .flow { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; margin: 1em 0; }
+    .flow-box { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 18px; font-size: 0.72em; color: #e2e8f0; text-align: center; min-width: 110px; }
+    .flow-box.highlight { border-color: var(--accent); color: var(--accent); }
+    .flow-box.purple { border-color: var(--accent2); color: var(--accent2); }
+    .flow-arrow { color: #475569; font-size: 1.2em; }
+
+    /* VAULT TREE */
+    .vault-tree { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; font-family: 'Cascadia Code', 'Consolas', monospace; font-size: 0.68em; line-height: 1.8; color: #94a3b8; }
+    .vault-tree .dir { color: var(--accent); font-weight: bold; }
+    .vault-tree .index { color: var(--warn); font-weight: bold; }
+    .vault-tree .comment { color: #475569; }
+
+    /* COMMAND TABLE */
+    .cmd-table { width: 100%; border-collapse: collapse; font-size: 0.72em; margin-top: 0.5em; }
+    .cmd-table th { background: #1e293b; color: var(--accent); padding: 8px 12px; text-align: left; font-weight: 600; }
+    .cmd-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: #cbd5e1; vertical-align: top; }
+    .cmd-table tr:hover td { background: #1a1a2e; }
+    .cmd-table code { font-size: 0.9em; }
+
+    /* DEPENDENCY DIAGRAM */
+    .dep-diagram { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 0.8em 0; }
+    .dep-row { display: flex; align-items: center; gap: 12px; }
+    .dep-box { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 8px 16px; font-size: 0.7em; color: #e2e8f0; font-family: monospace; }
+    .dep-box.changed { border-color: #ef4444; color: #fca5a5; background: #1f0a0a; }
+    .dep-box.propagated { border-color: var(--warn); color: #fcd34d; background: #1a1400; }
+    .dep-box.ok { border-color: #22c55e; color: #86efac; background: #0a1a0a; }
+    .dep-label { font-size: 0.6em; color: #64748b; text-align: center; margin-top: 2px; }
+    .dep-arrow { color: #475569; font-size: 1.4em; }
+
+    /* INDEX TABLE EXAMPLE */
+    .index-table { width: 100%; border-collapse: collapse; font-size: 0.68em; margin-top: 0.5em; }
+    .index-table th { background: #1e293b; color: #64748b; padding: 6px 10px; font-size: 0.85em; }
+    .index-table td { padding: 6px 10px; border: 1px solid var(--border); color: #94a3b8; }
+    .index-table .check { color: var(--accent); font-weight: bold; }
+    .index-table .dash { color: #334155; }
+    .index-table .version { color: var(--warn); }
+    .index-table .modulo { color: #e2e8f0; font-family: monospace; }
+
+    /* YAML BLOCK */
+    .yaml-block { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; font-family: monospace; font-size: 0.68em; line-height: 1.7; }
+    .yaml-key { color: var(--accent2); }
+    .yaml-val { color: #f8fafc; }
+    .yaml-comment { color: #475569; }
+    .yaml-sep { color: #64748b; }
+
+    /* LEGO */
+    .lego-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 1em 0; }
+    .lego-piece { background: var(--card); border: 2px solid var(--border); border-radius: 8px; padding: 12px; text-align: center; font-size: 0.65em; }
+    .lego-piece.c1 { border-color: var(--accent); }
+    .lego-piece.c2 { border-color: var(--accent2); }
+    .lego-piece.c3 { border-color: var(--warn); }
+    .lego-piece.c4 { border-color: #ec4899; }
+    .lego-piece .name { color: #e2e8f0; font-weight: bold; font-size: 1.1em; margin-bottom: 4px; }
+    .lego-piece .sub { color: #64748b; }
+
+    /* HIGHLIGHT BOX */
+    .highlight-box { background: linear-gradient(135deg, #0d2818, #0d1a2e); border: 1px solid var(--accent); border-radius: 10px; padding: 16px 22px; margin: 0.8em 0; text-align: center; }
+    .highlight-box .big { font-size: 1.1em; color: #fff; font-weight: bold; }
+    .highlight-box .small { font-size: 0.72em; color: #64748b; margin-top: 6px; }
+
+    /* FOOTER */
+    .slide-footer { position: absolute; bottom: 10px; right: 20px; font-size: 0.5em; color: #334155; }
+
+    /* MCP */
+    .mcp-flow { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 1em 0; flex-wrap: wrap; }
+    .mcp-box { text-align: center; }
+    .mcp-icon { font-size: 2em; }
+    .mcp-label { font-size: 0.62em; color: #94a3b8; margin-top: 4px; }
+    .mcp-arrow { font-size: 1.5em; color: #475569; }
+
+    .tag { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.6em; font-weight: bold; margin-left: 8px; }
+    .tag-write { background: #0d2818; color: var(--accent); border: 1px solid var(--accent); }
+    .tag-read { background: #1a1a2e; color: var(--accent2); border: 1px solid var(--accent2); }
+    .tag-new { background: #1a1000; color: var(--warn); border: 1px solid var(--warn); }
+  </style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ═══════════════════════════════════════════════ SLIDE 1 — TITLE -->
+<section>
+  <div class="slide-title">
+    <div style="font-size:0.7em; color:#475569; margin-bottom:0.5em; letter-spacing:0.1em;">EGM SISTEMI · APRILE 2026</div>
+    <h1>Knowledge System</h1>
+    <div class="subtitle">Documentazione tecnica automatica<br>con Claude Code + Obsidian</div>
+    <div style="margin-top: 1.5em;">
+      <span class="badge">5 slash command</span>
+      <span class="badge">Obsidian vault condiviso</span>
+      <span class="badge">Nessun LLM esterno</span>
+      <span class="badge">Dependency propagation</span>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 2 — PROBLEMA -->
+<section>
+  <h2>Il Problema</h2>
+  <ul class="problem-list">
+    <li>Centinaia di sessioni Claude Code accumulate — decisioni architetturali disperse</li>
+    <li>Ogni sviluppatore ricomincia da zero a capire un modulo</li>
+    <li>La documentazione esiste solo nella testa di chi ha scritto il codice</li>
+    <li>Scrivere documentazione separata dal lavoro non funziona — nessuno lo fa</li>
+  </ul>
+  <div class="highlight-box" style="margin-top: 1.2em;">
+    <div class="big">La conoscenza muore con la sessione</div>
+    <div class="small">O la catturo mentre programmo, o la perdo</div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 3 — SOLUZIONE -->
+<section>
+  <h2>La Soluzione</h2>
+  <div class="highlight-box">
+    <div class="big">Documenti mentre programmi, dal terminale dove già sei</div>
+    <div class="small">Un comando slash → Claude scrive nella wiki → Obsidian la mostra</div>
+  </div>
+  <div class="flow" style="margin-top: 1.2em;">
+    <div class="flow-box highlight">Claude Code<br><small>slash command</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">Filesystem<br><small>file .md</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box purple">Obsidian Vault<br><small>condiviso in rete</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">Claude Desktop<br><small>interroga via MCP</small></div>
+  </div>
+  <div class="card-grid card-grid-3" style="margin-top: 1em;">
+    <div class="card accent">
+      <h3>✓ Nessun backend</h3>
+      <p>Nessuna API key, nessun server aggiuntivo, nessuna infrastruttura</p>
+    </div>
+    <div class="card accent">
+      <h3>✓ Versionabile</h3>
+      <p>I comandi sono file Markdown in git — PR, review, rollback</p>
+    </div>
+    <div class="card accent">
+      <h3>✓ Condiviso</h3>
+      <p>Vault su rete condivisa — tutti i colleghi alimentano la stessa wiki</p>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 4 — VAULT -->
+<section>
+  <h2>Struttura Vault</h2>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+    <div class="vault-tree">
+      <span class="index">Wiki-Egm/</span><br>
+      ├── <span class="index">index.md</span>  <span class="comment">← MOC automatico ★</span><br>
+      │<br>
+      ├── <span class="dir">Architettura/</span><br>
+      │   └── BIZ2017/<br>
+      │       └── bneg0112/<br>
+      │           ├── _overview.md<br>
+      │           └── BNEG0112.md<br>
+      │<br>
+      ├── <span class="dir">Sessioni/</span><br>
+      │   └── BIZ2017/<br>
+      │       └── bneg0112.md<br>
+      │<br>
+      ├── <span class="dir">Manuali/</span><br>
+      │   └── BIZ2017/<br>
+      │       └── bneg0112.md<br>
+      │<br>
+      └── <span class="dir">Rilasci/</span><br>
+          └── BIZ2017/<br>
+              └── bneg0112-v1.5.md
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:10px;">
+        <h3>🗺 index.md — MOC radice</h3>
+        <p>Aggiornato automaticamente da ogni comando. Entry point per chiunque apra il vault.</p>
+      </div>
+      <div class="card" style="margin-bottom:10px;">
+        <h3>🏗 Architettura/</h3>
+        <p>Mappa tecnica del codice: layer, dipendenze, funzioni chiave</p>
+      </div>
+      <div class="card" style="margin-bottom:10px;">
+        <h3>📓 Sessioni/</h3>
+        <p>Diario cronologico — bug fix, feature, decisioni architetturali</p>
+      </div>
+      <div class="card" style="margin-bottom:10px;">
+        <h3>📖 Manuali/</h3>
+        <p>Come si usa il software — per utenti finali</p>
+      </div>
+      <div class="card">
+        <h3>🚀 Rilasci/</h3>
+        <p>Note di rilascio strutturate per IT — DLL, DB, istruzioni</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 5 — 5 COMANDI -->
+<section>
+  <h2>I 5 Comandi Slash</h2>
+  <table class="cmd-table">
+    <tr>
+      <th>Comando</th>
+      <th>Quando usarlo</th>
+      <th>Scrive in</th>
+    </tr>
+    <tr>
+      <td><code>/analizzacodebase</code></td>
+      <td>Prima analisi di un progetto · dopo refactor grosso</td>
+      <td><code>Architettura/</code></td>
+    </tr>
+    <tr>
+      <td><code>/aggiornacodebase</code> <span class="tag tag-new">nuovo</span></td>
+      <td>Dopo modifiche puntuali al codice</td>
+      <td><code>Architettura/</code></td>
+    </tr>
+    <tr>
+      <td><code>/aggiornawiki &lt;nota&gt;</code></td>
+      <td>Dopo ogni sessione significativa</td>
+      <td><code>Sessioni/</code></td>
+    </tr>
+    <tr>
+      <td><code>/aggiornamanuale &lt;nota&gt;</code></td>
+      <td>Nuova feature visibile · cambio workflow</td>
+      <td><code>Manuali/</code></td>
+    </tr>
+    <tr>
+      <td><code>/aggiornarilasci &lt;versione&gt;</code></td>
+      <td>Prima o dopo un deploy</td>
+      <td><code>Rilasci/</code></td>
+    </tr>
+  </table>
+  <div class="highlight-box" style="margin-top: 1em;">
+    <div class="big">Tutti aggiornano automaticamente <code>index.md</code></div>
+    <div class="small">Il MOC si costruisce da solo — nessun umano che dimentica di aggiornarlo</div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 6 — ANALIZZACODEBASE -->
+<section>
+  <h2>/analizzacodebase — come funziona</h2>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <div>
+      <p style="color:#64748b; font-size:0.65em; margin-bottom: 8px;">1. Scansione file sorgente</p>
+      <pre><code class="language-bash">find . -type f \
+  \( -iname "*.vb" -o -iname "*.cs" \
+     -o -iname "*.js" -o -iname "*.ts" \) \
+  ! -path "*/node_modules/*"</code></pre>
+      <p style="color:#64748b; font-size:0.65em; margin: 12px 0 8px 0;">2. Output per ogni file</p>
+      <div class="yaml-block">
+        <span class="yaml-sep">---</span><br>
+        <span class="yaml-key">layer</span><span class="yaml-val">: service</span><br>
+        <span class="yaml-key">depends_on</span><span class="yaml-val">:</span><br>
+        <span class="yaml-val">  - database</span><br>
+        <span class="yaml-val">  - clienti</span><br>
+        <span class="yaml-key">last_analyzed</span><span class="yaml-val">: 2026-04-24</span><br>
+        <span class="yaml-sep">---</span>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:10px;">
+        <h3>Layer architetturale</h3>
+        <p><code>api</code> · <code>service</code> · <code>data</code> · <code>ui</code> · <code>utility</code></p>
+      </div>
+      <div class="card" style="margin-bottom:10px;">
+        <h3>Dipendenze dichiarate</h3>
+        <p>Lista dei moduli da cui dipende — usata da <code>/aggiornacodebase</code> per propagare gli aggiornamenti</p>
+      </div>
+      <div class="card" style="margin-bottom:10px;">
+        <h3>Regola accuratezza</h3>
+        <p>Se il comportamento non è chiaro dal codice → <strong>chiede</strong> prima di scrivere. Non inventa mai.</p>
+      </div>
+      <div class="card warn">
+        <h3>Quando NON usarlo</h3>
+        <p>Modifiche puntuali → usa <code>/aggiornacodebase</code><br>È un full-rescan: rigenera tutto</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 7 — AGGIORNACODEBASE -->
+<section>
+  <h2>/aggiornacodebase — propagazione dipendenze</h2>
+  <p style="font-size:0.72em; color:#94a3b8; margin-bottom: 0.8em;">Ispirato a <em>CodePlan</em> (Microsoft Research) — change may-impact analysis</p>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: center;">
+    <div>
+      <div class="dep-diagram">
+        <div class="dep-row">
+          <div style="text-align:center;">
+            <div class="dep-box changed">Clienti.vb</div>
+            <div class="dep-label">modificato (git log)</div>
+          </div>
+        </div>
+        <div class="dep-arrow">↓ propaga</div>
+        <div class="dep-row">
+          <div style="text-align:center;">
+            <div class="dep-box propagated">Ordini.vb</div>
+            <div class="dep-label">depends_on: clienti → rianalizzato</div>
+          </div>
+        </div>
+        <div class="dep-arrow">↓ skip</div>
+        <div class="dep-row">
+          <div style="text-align:center;">
+            <div class="dep-box ok">Fatture.vb</div>
+            <div class="dep-label">non dipende da clienti → invariato</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:10px;">
+        <h3>Fase 1 — Classifica file</h3>
+        <p><strong>Nuovo</strong>: nessun doc wiki → analizza<br>
+        <strong>Modificato</strong>: git log &gt; last_analyzed → analizza<br>
+        <strong>Invariato</strong>: skip</p>
+      </div>
+      <div class="card accent" style="margin-bottom:10px;">
+        <h3>Fase 2 — Propagazione inversa</h3>
+        <p>Cerca nei frontmatter chi dipende dai file cambiati → li aggiunge alla coda</p>
+      </div>
+      <div class="card" style="margin-bottom:10px;">
+        <h3>Fase 3 — Segnala orfani</h3>
+        <p>Doc wiki senza sorgente corrispondente → avvisa (non cancella mai)</p>
+      </div>
+      <pre style="font-size:0.55em;"><code>git log --format="%ai" -1 -- Clienti.vb
+# 2026-04-24 > last_analyzed: 2026-04-20
+# → rianalizza</code></pre>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 8 — INDEX MOC -->
+<section>
+  <h2>index.md — Map of Content</h2>
+  <p style="font-size:0.72em; color:#94a3b8; margin-bottom: 0.6em;">Aggiornato automaticamente da tutti i comandi. Nessuno lo dimentica.</p>
+  <div class="vault-tree" style="margin-bottom: 1em;">
+    <span class="yaml-comment"># generato automaticamente — non modificare a mano</span><br><br>
+    <span style="color:#fff; font-weight:bold;"># Wiki EGM — Index</span><br><br>
+    <span style="color: var(--accent2);">## BIZ2017</span><br><br>
+    | Modulo | Architettura | Sessioni | Manuali | Rilasci |<br>
+    |--------|-------------|---------|---------|---------|<br>
+    | bneg0112 | <span style="color:var(--accent);">[[.../bneg0112/_overview\|✓]]</span> | <span style="color:var(--accent);">[[Sessioni/.../bneg0112\|✓]]</span> | — | <span style="color:var(--warn);">[[.../bneg0112-v1.5\|v1.5]]</span> |<br>
+    | bneg0185 | <span style="color:var(--accent);">[[.../bneg0185/_overview\|✓]]</span> | — | — | — |
+  </div>
+  <div class="card-grid card-grid-3">
+    <div class="card">
+      <h3>Entry point unico</h3>
+      <p>Chiunque apra il vault sa subito cosa è documentato e dove</p>
+    </div>
+    <div class="card accent">
+      <h3>Gap visibili</h3>
+      <p>Le celle con <code>—</code> mostrano dove manca documentazione</p>
+    </div>
+    <div class="card purple">
+      <h3>Obsidian Graph</h3>
+      <p>I wikilink cross-area creano cluster visibili nel Graph View</p>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 9 — YAML FRONTMATTER -->
+<section>
+  <h2>Frontmatter YAML — il grafo di dipendenze</h2>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+    <div>
+      <p style="color:#64748b; font-size:0.65em; margin-bottom: 8px;">Ogni pagina Architettura/</p>
+      <div class="yaml-block">
+        <span class="yaml-sep">---</span><br>
+        <span class="yaml-key">layer</span><span class="yaml-val">: service</span>
+        <span class="yaml-comment">  # api|service|data|ui|utility</span><br>
+        <span class="yaml-key">depends_on</span><span class="yaml-val">:</span><br>
+        <span class="yaml-val">  - database</span>
+        <span class="yaml-comment">  # nome modulo</span><br>
+        <span class="yaml-val">  - clienti</span><br>
+        <span class="yaml-key">last_analyzed</span><span class="yaml-val">: 2026-04-24</span><br>
+        <span class="yaml-sep">---</span><br><br>
+        <span style="color:#e2e8f0; font-weight:bold;"># Ordini</span><br><br>
+        <span style="color:#64748b;">## Scopo</span><br>
+        <span style="color:#94a3b8;">Gestisce il ciclo di vita degli ordini...</span><br><br>
+        <span style="color:#64748b;">## Funzioni / Classi Principali</span><br>
+        <span style="color:#94a3b8;">| Nome | Descrizione |<br>|------|-------------|<br>| `CalcolaImporto` | ... |</span>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom: 10px;">
+        <h3>🔍 Usato da Obsidian Graph</h3>
+        <p>Il Graph View clusterizza per <code>layer</code>, mostra relazioni via wikilink</p>
+      </div>
+      <div class="card accent" style="margin-bottom: 10px;">
+        <h3>⚙ Usato da /aggiornacodebase</h3>
+        <p><code>depends_on</code> è il dependency graph — propagazione inversa automatica</p>
+      </div>
+      <div class="card" style="margin-bottom: 10px;">
+        <h3>📅 Usato da /aggiornacodebase</h3>
+        <p><code>last_analyzed</code> viene confrontato con <code>git log</code> per rilevare modifiche</p>
+      </div>
+      <div class="card warn">
+        <h3>⚠ Regola d'oro</h3>
+        <p>Solo ciò che è <strong>leggibile nel codice</strong>. Se non è chiaro → chiede. Non inventa.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 10 — MCP OBSIDIAN -->
+<section>
+  <h2>MCP Obsidian — Interroga la Wiki</h2>
+  <div class="mcp-flow">
+    <div class="mcp-box">
+      <div class="mcp-icon">💻</div>
+      <div class="flow-box highlight" style="margin-top: 6px;">Claude Code</div>
+      <div class="mcp-label">scrive <span class="tag tag-write">WRITE</span></div>
+    </div>
+    <div class="mcp-arrow">→</div>
+    <div class="mcp-box">
+      <div class="mcp-icon">📁</div>
+      <div class="flow-box" style="margin-top: 6px;">Vault Obsidian<br><small>\\egmsql\Wiki-Egm</small></div>
+      <div class="mcp-label">filesystem condiviso</div>
+    </div>
+    <div class="mcp-arrow">←</div>
+    <div class="mcp-box">
+      <div class="mcp-icon">🖥</div>
+      <div class="flow-box purple" style="margin-top: 6px;">Claude Desktop</div>
+      <div class="mcp-label">legge <span class="tag tag-read">READ</span></div>
+    </div>
+  </div>
+  <div class="card-grid card-grid-2" style="margin-top: 0.6em;">
+    <div>
+      <p style="font-size:0.7em; color:#64748b; margin-bottom: 6px;">Esempi di query in linguaggio naturale:</p>
+      <div class="card" style="margin-bottom: 8px;">
+        <p style="color: var(--accent); font-style: italic;">"Trova tutte le sessioni che parlano di BNEG0112"</p>
+      </div>
+      <div class="card" style="margin-bottom: 8px;">
+        <p style="color: var(--accent); font-style: italic;">"Mostrami l'architettura del modulo Ordini"</p>
+      </div>
+      <div class="card">
+        <p style="color: var(--accent); font-style: italic;">"Quali moduli dipendono da database.vb?"</p>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:10px;">
+        <h3>Setup (una volta)</h3>
+        <p>1. Plugin <strong>Local REST API</strong> in Obsidian<br>
+        2. Configurare MCP in <code>claude_desktop_config.json</code><br>
+        3. Riavviare Claude Desktop</p>
+      </div>
+      <div class="card accent">
+        <h3>Read-only</h3>
+        <p>Il MCP legge ma non scrive. La scrittura rimane sempre sui slash command da Claude Code.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 11 — LEGO -->
+<section>
+  <h2>Il Metodo Lego</h2>
+  <p style="font-size:0.75em; color:#94a3b8; margin-bottom: 0.8em;">Codebase grandi organizzate in macro-argomenti → ogni pezzo è autonomo e documentabile separatamente</p>
+  <div class="lego-grid">
+    <div class="lego-piece c1">
+      <div class="name">Ordini\</div>
+      <div class="sub">→ /analizzacodebase</div>
+      <div style="margin-top:8px; font-size:0.85em; color:var(--accent);">✓ doc</div>
+    </div>
+    <div class="lego-piece c2">
+      <div class="name">Clienti\</div>
+      <div class="sub">→ /analizzacodebase</div>
+      <div style="margin-top:8px; font-size:0.85em; color:var(--accent);">✓ doc</div>
+    </div>
+    <div class="lego-piece c3">
+      <div class="name">Magazzino\</div>
+      <div class="sub">→ /analizzacodebase</div>
+      <div style="margin-top:8px; font-size:0.85em; color:var(--accent);">✓ doc</div>
+    </div>
+    <div class="lego-piece c4">
+      <div class="name">Fatture\</div>
+      <div class="sub">→ /analizzacodebase</div>
+      <div style="margin-top:8px; font-size:0.85em; color:#ec4899;">— todo</div>
+    </div>
+  </div>
+  <div class="flow" style="margin: 0.8em 0;">
+    <div class="flow-arrow">↓</div>
+  </div>
+  <div class="vault-tree" style="font-size:0.62em; padding: 10px 16px;">
+    Architettura\BIZ2017\<span class="dir">ordini\</span>_overview.md &nbsp;&nbsp; Architettura\BIZ2017\<span class="dir">clienti\</span>_overview.md &nbsp;&nbsp; Architettura\BIZ2017\<span class="dir">magazzino\</span>_overview.md
+  </div>
+  <div class="card-grid card-grid-2" style="margin-top: 0.8em;">
+    <div class="card accent">
+      <h3>Il "problema scala" non esiste</h3>
+      <p>Se il progetto è strutturato bene in pezzi, ogni pezzo si documenta con un comando. Se non è strutturato bene, il problema è a monte.</p>
+    </div>
+    <div class="card purple">
+      <h3>Il prossimo passo</h3>
+      <p>All'inizio di ogni sessione, Claude legge automaticamente <code>_overview.md</code> del pezzo su cui lavori → parte già con contesto completo.</p>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 12 — FLUSSO TIPICO -->
+<section>
+  <h2>Flusso di Lavoro Tipico</h2>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <div>
+      <p style="font-size:0.68em; color:#64748b; margin-bottom: 8px;">Prima volta su un progetto</p>
+      <pre><code class="language-bash">cd C:\BIZ2017\BNEG0112
+/analizzacodebase
+# → Architettura\BIZ2017\bneg0112\ creata
+# → index.md aggiornato</code></pre>
+      <p style="font-size:0.68em; color:#64748b; margin: 12px 0 8px 0;">Dopo una sessione di lavoro</p>
+      <pre><code class="language-bash">/aggiornawiki corretto calcolo commissioni
+# → Sessioni\BIZ2017\bneg0112.md aggiornato</code></pre>
+      <p style="font-size:0.68em; color:#64748b; margin: 12px 0 8px 0;">Dopo modifiche al codice</p>
+      <pre><code class="language-bash">/aggiornacodebase
+# → solo file cambiati rianalizzati
+# → dipendenze propagate</code></pre>
+    </div>
+    <div>
+      <p style="font-size:0.68em; color:#64748b; margin-bottom: 8px;">Prima del rilascio</p>
+      <pre><code class="language-bash">/aggiornarilasci 1.5
+# → Rilasci\BIZ2017\bneg0112-v1.5.md</code></pre>
+      <p style="font-size:0.68em; color:#64748b; margin: 12px 0 8px 0;">Interrogare la wiki (Claude Desktop)</p>
+      <pre><code class="language-text">"Quali moduli di BIZ2017 sono stati
+aggiornati nell'ultima settimana?"
+
+"Mostrami le dipendenze di Ordini.vb"</code></pre>
+      <div class="card accent" style="margin-top: 12px;">
+        <h3>Tempo medio per sessione</h3>
+        <p>30 secondi per <code>/aggiornawiki</code><br>2-5 minuti per <code>/analizzacodebase</code> (piccolo modulo)</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 13 — INSTALLAZIONE -->
+<section>
+  <h2>Installazione — 3 Passi</h2>
+  <div class="card-grid card-grid-3">
+    <div class="card accent">
+      <h3>1. Copia i comandi</h3>
+      <p>Da <code>DashboardClaudeCode/.claude/commands/</code> a <code>~/.claude/commands/</code></p>
+      <p style="margin-top: 8px;">5 file <code>.md</code> — funzionano globalmente da qualsiasi progetto</p>
+    </div>
+    <div class="card accent">
+      <h3>2. Crea wiki-config.json</h3>
+      <pre style="font-size:0.75em; margin-top: 6px;"><code>{
+  "wikiPath":
+  "\\\\egmsql\\EGMStruttura
+  \\Wiki-Egm"
+}</code></pre>
+    </div>
+    <div class="card accent">
+      <h3>3. Test</h3>
+      <p>Apri Claude Code in una cartella progetto e digita:</p>
+      <pre style="font-size:0.85em; margin-top: 6px;"><code>/analizzacodebase</code></pre>
+    </div>
+  </div>
+  <div class="card-grid card-grid-2" style="margin-top: 14px;">
+    <div class="card purple">
+      <h3>(Opzionale) MCP Obsidian</h3>
+      <p>Plugin <strong>Local REST API</strong> in Obsidian + configurazione in <code>claude_desktop_config.json</code></p>
+      <p style="margin-top: 6px;">Manuale completo: <code>Manuale d'uso/installazione</code> nel vault</p>
+    </div>
+    <div class="card">
+      <h3>Prerequisiti</h3>
+      <p>✓ Claude Code installato e autenticato<br>
+      ✓ Accesso a <code>\\egmsql\EGMStruttura\Wiki-Egm</code><br>
+      ✓ Node.js (solo per MCP Obsidian)</p>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ SLIDE 14 — FINE -->
+<section>
+  <div class="slide-title">
+    <h1 style="font-size:1.8em;">Domande?</h1>
+    <div class="subtitle" style="margin-top: 0.5em;">Il manuale completo è nel vault<br><code>\\egmsql\EGMStruttura\Wiki-Egm\Manuale d'uso\</code></div>
+    <div style="margin-top: 2em;">
+      <div class="card-grid card-grid-3" style="text-align:left; margin-top: 1em;">
+        <div class="card accent">
+          <h3>Repo</h3>
+          <p>github.com/Attilio81/<br>ClaudeCodeDashboard</p>
+        </div>
+        <div class="card purple">
+          <h3>Wiki</h3>
+          <p>\\egmsql\EGMStruttura<br>\Wiki-Egm</p>
+        </div>
+        <div class="card">
+          <h3>Versione</h3>
+          <p>Knowledge System v8.0<br>Aprile 2026</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="slide-footer">Knowledge System EGM — 2026</div>
+</section>
+
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.0/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.6.0/plugin/highlight/highlight.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    controls: true,
+    progress: true,
+    slideNumber: 'c/t',
+    transition: 'fade',
+    transitionSpeed: 'fast',
+    backgroundTransition: 'fade',
+    plugins: [RevealHighlight],
+    width: 1200,
+    height: 700,
+    margin: 0.04,
+    minScale: 0.2,
+    maxScale: 2.0
+  });
+</script>
+</body>
+</html>
