@@ -170,3 +170,4 @@ Comunica all'utente:
 - Naming convention stabile: nome wiki = nome file sorgente senza estensione
 - La propagazione dipendenze è limitata a 2 iterazioni — se ci sono dipendenze circolari non si blocca
 - Audience: sviluppatori tecnici
+- **Accuratezza:** scrivi solo ciò che è esplicitamente leggibile nel codice. Se il comportamento di una funzione o dipendenza non è chiaro dalla lettura, chiedi all'utente prima di scrivere — non inventare. Se qualcosa rimane ambiguo dopo la risposta, segnalalo nella sezione Note con `⚠️ da verificare: {dubbio}`.
