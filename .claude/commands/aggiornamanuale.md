@@ -1,24 +1,36 @@
 Devi scrivere o aggiornare il manuale del progetto nella wiki Obsidian del progetto corrente.
 
-**Passaggio 1 — Recupera configurazione wiki**
+## Quando usarlo
+- Quando cambia come si usa il software: nuova feature visibile, cambio workflow utente
+- NON usare per: log di sessione → usa /aggiornawiki
+- NON usare per: DLL/tabelle DB/note rilascio → usa /aggiornarilasci
+- NON usare per: analisi strutturale del codice → usa /analizzacodebase
 
-Esegui:
-```bash
-curl -s http://localhost:3001/api/admin/wiki-settings
-```
-Leggi il campo `wikiPath` dalla risposta.
+---
+
+**Passaggio 1 — Recupera il percorso wiki**
+
+Leggi il file:
+`C:\Users\attilio.pregnolato.EGMSISTEMI\.claude\wiki-config.json`
+
+Estrai il campo `wikiPath`.
 
 **Passaggio 2 — Determina il file di destinazione**
 
 Dal cwd corrente (esegui `pwd` se non lo conosci), calcola:
-- Rimuovi il prefisso drive (`/c/` → `C:\`, oppure già Windows)
-- Cartella wiki = tutto tranne l'ultimo componente del path (es. `/c/BIZ2017/BNEG0112` → cartella `BIZ2017`)
-- File wiki = ultimo componente lowercase + `.md` (es. `bneg0112.md`)
-- Percorso completo: `{wikiPath}/{cartella}/{file}`
+- Normalizza il path: `/c/BIZ2017/BNEG0112` → `C:\BIZ2017\BNEG0112`
+- `cartella` = penultimo componente (es. `BIZ2017`)
+- `modulo` = ultimo componente lowercase (es. `bneg0112`)
+- Percorso completo: `{wikiPath}\Manuali\{cartella}\{modulo}.md`
 
-Questo è il manuale principale del progetto — descrive cos'è, come funziona, le sue logiche.
+**Passaggio 3 — Template di riferimento**
 
-**Passaggio 3 — Contenuto da documentare**
+Prima di scrivere, leggi la struttura attesa dal template:
+`C:\Progetti Pilota\DashboardClaudeCode\Modelli\template_manuale_utente.md`
+
+Rispetta la struttura: intestazione con versione/data/destinatari, indice rapido, sezioni con mockup ASCII dove applicabile, messaggi di errore, FAQ, supporto, riepilogo veloce.
+
+**Passaggio 4 — Contenuto da documentare**
 
 Se l'utente ha già descritto cosa documentare nel messaggio del comando, usalo.
 Se non è specificato, chiedi: *"Cosa vuoi documentare nel manuale? Descrivi la logica, l'architettura o la procedura."*
@@ -29,35 +41,27 @@ date +%Y-%m-%d
 whoami
 ```
 
-**Passaggio 4 — Scrivi nel manuale**
+**Passaggio 5 — Scrivi nel manuale**
 
-**Se il file non esiste:** crealo con intestazione `# NomeProgetto` e la nuova sezione nel formato sotto.
+**Se il file non esiste:** crealo seguendo il template (intestazione + indice + prima sezione).
 
 **Se il file esiste:** leggilo con Read, poi:
+- Cerca sezione `##` che descrive lo stesso argomento (confronto semantico)
+- **Trovata:** riscrivi la sezione (unisci vecchio + nuovo), aggiorna cronologia
+- **Non trovata:** appendi nuova sezione in fondo con `> *Cronologia: YYYY-MM-DD utente — prima stesura*`
 
-- Cerca se esiste già una sezione `##` il cui titolo descrive la **stessa procedura/argomento** di quello che stai documentando (confronto semantico, non esatto).
+**Passaggio 6 — Aggiungi wikilink cross-area**
 
-  **Sezione esistente trovata → AGGIORNA IN-PLACE:**
-  - Riscrivi il contenuto della sezione con le informazioni aggiornate (unisci vecchio + nuovo, tieni ciò che è ancora valido)
-  - Trova la riga cronologia `> *Cronologia:` in fondo alla sezione e aggiungi la nuova voce:
-    `· YYYY-MM-DD utente — descrizione modifica`
-  - Se la riga cronologia non esiste ancora, aggiungila:
-    `> *Cronologia: YYYY-MM-DD utente — prima stesura*`
-
-  **Sezione non trovata → AGGIUNGI NUOVA:**
-  - Appendi la nuova sezione in fondo al file nel formato:
-  ```
-  ## Titolo descrittivo della procedura
-
-  <contenuto>
-
-  > *Cronologia: YYYY-MM-DD utente — prima stesura*
-  ```
+Controlla se esiste `{wikiPath}\Architettura\{cartella}\_overview.md`.
+Se esiste, aggiungi nell'intestazione del file (dopo il titolo `#`):
+```
+> Riferimento tecnico: [[Architettura/{cartella}/_overview]]
+```
+(Solo se non già presente.)
 
 **Regole:**
-- Scrivi SOLO quello che l'utente ti ha chiesto di documentare — niente inventato
+- Scrivi SOLO quello che l'utente ha chiesto di documentare
 - Usa tabelle Markdown per strutture dati, blocchi codice per logica/SQL/VB
-- `###` per dettagli dentro la sezione
-- Il titolo della sezione descrive la procedura/argomento (es. `## Logica calcolo commissioni`), NON include la data — quella va solo nella cronologia
-- NON scrivere changelog di sessione — per quello usa `/aggiornawiki`
-- Conferma all'utente il percorso del file e se hai aggiornato una sezione esistente o creato una nuova
+- Il titolo della sezione descrive la procedura (es. `## Logica calcolo commissioni`), NON include la data
+- NON scrivere log di sessione — per quello usa `/aggiornawiki`
+- Conferma all'utente il percorso del file e se hai aggiornato o creato
