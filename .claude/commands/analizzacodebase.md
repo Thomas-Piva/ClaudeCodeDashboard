@@ -28,7 +28,7 @@ Dal cwd corrente (esegui `pwd` se non lo conosci), calcola:
 
 Elenca i file sorgente nella directory corrente (ricorsivo):
 ```bash
-find . -type f \( -name "*.js" -o -name "*.ts" -o -name "*.jsx" -o -name "*.tsx" -o -name "*.py" -o -name "*.cs" -o -name "*.vb" \) \
+find . -type f \( -iname "*.js" -o -iname "*.ts" -o -iname "*.jsx" -o -iname "*.tsx" -o -iname "*.py" -o -iname "*.cs" -o -iname "*.vb" \) \
   ! -path "*/node_modules/*" \
   ! -path "*/dist/*" \
   ! -path "*/build/*" \
