@@ -165,6 +165,31 @@ Comunica all'utente:
 - `{N} file orfani`: lista nomi + avviso "verificare se eliminare manualmente da wiki"
 - Percorso overview: `{wikiDir}\_overview.md`
 
+**Passaggio 10 — Aggiorna index radice**
+
+Leggi `{wikiPath}\index.md`.
+
+**Se non esiste**, crealo:
+```markdown
+---
+last_updated: {YYYY-MM-DD}
+---
+
+# Wiki EGM — Index
+
+## {cartella}
+
+| Modulo | Architettura | Sessioni | Manuali | Rilasci |
+|--------|-------------|---------|---------|---------|
+| {modulo} | [[Architettura/{cartella}/{modulo}/_overview\|✓]] | — | — | — |
+```
+
+**Se esiste**:
+1. Cerca `## {cartella}` — se manca, aggiungila con tabella
+2. Cerca riga `{modulo}` nella tabella — se manca, aggiungila con `—` in tutte le colonne
+3. Aggiorna colonna **Architettura**: sostituisci `—` con `[[Architettura/{cartella}/{modulo}/_overview|✓]]` (se già ha un link, lascia invariato)
+4. Aggiorna `last_updated: {YYYY-MM-DD}`
+
 **Regole:**
 - Non eliminare mai file wiki automaticamente — solo segnala orfani
 - Naming convention stabile: nome wiki = nome file sorgente senza estensione

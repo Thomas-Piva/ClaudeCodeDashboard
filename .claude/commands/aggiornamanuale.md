@@ -52,12 +52,37 @@ whoami
 
 **Passaggio 6 — Aggiungi wikilink cross-area**
 
-Controlla se esiste `{wikiPath}\Architettura\{cartella}\_overview.md`.
+Controlla se esiste `{wikiPath}\Architettura\{cartella}\{modulo}\_overview.md`.
 Se esiste, aggiungi nell'intestazione del file (dopo il titolo `#`):
 ```
-> Riferimento tecnico: [[Architettura/{cartella}/_overview]]
+> Riferimento tecnico: [[Architettura/{cartella}/{modulo}/_overview]]
 ```
 (Solo se non già presente.)
+
+**Passaggio 7 — Aggiorna index radice**
+
+Leggi `{wikiPath}\index.md`.
+
+**Se non esiste**, crealo:
+```markdown
+---
+last_updated: {YYYY-MM-DD}
+---
+
+# Wiki EGM — Index
+
+## {cartella}
+
+| Modulo | Architettura | Sessioni | Manuali | Rilasci |
+|--------|-------------|---------|---------|---------|
+| {modulo} | — | — | [[Manuali/{cartella}/{modulo}\|✓]] | — |
+```
+
+**Se esiste**:
+1. Cerca `## {cartella}` — se manca, aggiungila con tabella
+2. Cerca riga `{modulo}` nella tabella — se manca, aggiungila con `—` in tutte le colonne
+3. Aggiorna colonna **Manuali**: sostituisci `—` con `[[Manuali/{cartella}/{modulo}|✓]]` (se già ha un link, lascia invariato)
+4. Aggiorna `last_updated: {YYYY-MM-DD}`
 
 **Regole:**
 - Scrivi SOLO quello che l'utente ha chiesto di documentare

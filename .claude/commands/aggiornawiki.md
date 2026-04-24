@@ -54,11 +54,36 @@ whoami
 
 **Passaggio 5 — Aggiungi wikilink cross-area (opzionale)**
 
-Controlla se esiste `{wikiPath}\Architettura\{cartella}\{modulo}.md`.
+Controlla se esiste `{wikiPath}\Architettura\{cartella}\{modulo}\_overview.md`.
 Se esiste, aggiungi in fondo alla sezione appena scritta:
 ```
-→ Vedi anche: [[Architettura/{cartella}/{modulo}]]
+→ Vedi anche: [[Architettura/{cartella}/{modulo}/_overview]]
 ```
+
+**Passaggio 6 — Aggiorna index radice**
+
+Leggi `{wikiPath}\index.md`.
+
+**Se non esiste**, crealo:
+```markdown
+---
+last_updated: {YYYY-MM-DD}
+---
+
+# Wiki EGM — Index
+
+## {cartella}
+
+| Modulo | Architettura | Sessioni | Manuali | Rilasci |
+|--------|-------------|---------|---------|---------|
+| {modulo} | — | [[Sessioni/{cartella}/{modulo}\|✓]] | — | — |
+```
+
+**Se esiste**:
+1. Cerca `## {cartella}` — se manca, aggiungila con tabella
+2. Cerca riga `{modulo}` nella tabella — se manca, aggiungila con `—` in tutte le colonne
+3. Aggiorna colonna **Sessioni**: sostituisci `—` con `[[Sessioni/{cartella}/{modulo}|✓]]` (se già ha un link, lascia invariato)
+4. Aggiorna `last_updated: {YYYY-MM-DD}`
 
 **Regole:**
 - Scrivi cosa è cambiato e perché — non solo "aggiornato X"

@@ -85,6 +85,31 @@ Se esiste `{wikiPath}\Manuali\{cartella}\{modulo}.md`, aggiungi:
 → Manuale utente: [[Manuali/{cartella}/{modulo}]]
 ```
 
+**Passaggio 7 — Aggiorna index radice**
+
+Leggi `{wikiPath}\index.md`.
+
+**Se non esiste**, crealo:
+```markdown
+---
+last_updated: {YYYY-MM-DD}
+---
+
+# Wiki EGM — Index
+
+## {cartella}
+
+| Modulo | Architettura | Sessioni | Manuali | Rilasci |
+|--------|-------------|---------|---------|---------|
+| {modulo} | — | — | — | [[Rilasci/{cartella}/{modulo}-v{versione}\|v{versione}]] |
+```
+
+**Se esiste**:
+1. Cerca `## {cartella}` — se manca, aggiungila con tabella
+2. Cerca riga `{modulo}` nella tabella — se manca, aggiungila con `—` in tutte le colonne
+3. Aggiorna colonna **Rilasci**: sostituisci il valore con `[[Rilasci/{cartella}/{modulo}-v{versione}|v{versione}]]` (sempre aggiorna — riflette l'ultima versione)
+4. Aggiorna `last_updated: {YYYY-MM-DD}`
+
 **Regole:**
 - Audience: IT / sviluppatori che installano — non utenti finali
 - Sii preciso su percorsi DLL (formato Windows assoluto)

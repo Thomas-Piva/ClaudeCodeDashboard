@@ -127,6 +127,31 @@ Se esistono, aggiungi nell'`_overview.md`:
 - [[Sessioni/{cartella}/{modulo}]]
 ```
 
+**Passaggio 8 — Aggiorna index radice**
+
+Leggi `{wikiPath}\index.md`.
+
+**Se non esiste**, crealo:
+```markdown
+---
+last_updated: {YYYY-MM-DD}
+---
+
+# Wiki EGM — Index
+
+## {cartella}
+
+| Modulo | Architettura | Sessioni | Manuali | Rilasci |
+|--------|-------------|---------|---------|---------|
+| {modulo} | [[Architettura/{cartella}/{modulo}/_overview\|✓]] | — | — | — |
+```
+
+**Se esiste**:
+1. Cerca `## {cartella}` — se manca, aggiungila con tabella
+2. Cerca riga `{modulo}` nella tabella — se manca, aggiungila con `—` in tutte le colonne
+3. Aggiorna colonna **Architettura**: sostituisci `—` con `[[Architettura/{cartella}/{modulo}/_overview|✓]]` (se già ha un link, lascia invariato)
+4. Aggiorna `last_updated: {YYYY-MM-DD}`
+
 **Regole:**
 - Naming convention stabile: nome wiki = nome file sorgente senza estensione. Non cambiare mai questo nome — i link da Sessioni/ dipendono da esso.
 - Audience: sviluppatori tecnici
