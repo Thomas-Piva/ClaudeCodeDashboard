@@ -1,0 +1,141 @@
+<h2>Design: Bugfix Batch v4.5.0</h2>
+<p class="subtitle">6 fix indipendenti — dettaglio di ogni modifica</p>
+
+<div style="display:flex;flex-direction:column;gap:16px;margin-top:20px">
+
+  <!-- BUG 1 -->
+  <div class="fix-card" style="border-left:3px solid #ff3d71">
+    <div class="fix-header">
+      <span class="fix-num" style="background:rgba(255,61,113,0.15);color:#ff3d71">1</span>
+      <h3>claudeDirNameToPath — reverse conversion lossy</h3>
+      <span class="fix-file">claude-watcher.js:469</span>
+    </div>
+    <div class="fix-body">
+      <div class="fix-problem">
+        <div class="label">Problema</div>
+        <code>C--Progetti-Pilota-MioProgetto → C:\Progetti\Pilota\MioProgetto</code><br>
+        <span style="opacity:0.6;font-size:0.72rem">Spazi nel path originale (→ <code>-</code>) vengono convertiti in <code>\</code></span>
+      </div>
+      <div class="fix-arrow">→</div>
+      <div class="fix-solution">
+        <div class="label">Fix</div>
+        <span>Sostituire la decodifica "indovina" con un <strong>rescan mirato delle scan roots</strong> quando appare una nuova dir in <code>.claude/projects</code>. Invece di ricostruire il path dal nome, si usa <code>discoverFromRoots()</code> già esistente — confronta il claudeDirName calcolato con quello trovato.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUG 2 -->
+  <div class="fix-card" style="border-left:3px solid #ff3d71">
+    <div class="fix-header">
+      <span class="fix-num" style="background:rgba(255,61,113,0.15);color:#ff3d71">2</span>
+      <h3>localhost:3001 hard-coded nel frontend</h3>
+      <span class="fix-file">ProjectCard.jsx (4 punti)</span>
+    </div>
+    <div class="fix-body">
+      <div class="fix-problem">
+        <div class="label">Problema</div>
+        <code>fetch('http://localhost:3001/api/...')</code><br>
+        <span style="opacity:0.6;font-size:0.72rem">Duplicato in mark-checked, exclude, open-terminal, terminal-windows, focus-window</span>
+      </div>
+      <div class="fix-arrow">→</div>
+      <div class="fix-solution">
+        <div class="label">Fix</div>
+        <span>Creare <code>src/config.js</code>: <code>export const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:3001'</code> e sostituire tutte le occorrenze. Un solo punto da cambiare.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUG 3 -->
+  <div class="fix-card" style="border-left:3px solid #ff9100">
+    <div class="fix-header">
+      <span class="fix-num" style="background:rgba(255,145,0,0.15);color:#ff9100">3</span>
+      <h3>terminal-pids.json accumula voci stale</h3>
+      <span class="fix-file">server.js:171</span>
+    </div>
+    <div class="fix-body">
+      <div class="fix-problem">
+        <div class="label">Problema</div>
+        <span>PID di processi morti rimangono nel file — al prossimo "trova finestra" viene restituito un match fantasma con badge "dashboard"</span>
+      </div>
+      <div class="fix-arrow">→</div>
+      <div class="fix-solution">
+        <div class="label">Fix (2 punti)</div>
+        <span>1. In <code>/exclude</code>: rimuove il PID del progetto escluso dal file.<br>
+        2. In <code>/terminal-windows</code>: se il PID salvato non è presente nell'output PS (processo morto), rimuoverlo dal file in modo reattivo.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUG 4 -->
+  <div class="fix-card" style="border-left:3px solid #ff9100">
+    <div class="fix-header">
+      <span class="fix-num" style="background:rgba(255,145,0,0.15);color:#ff9100">4</span>
+      <h3>readLastNLines legge tutto il file</h3>
+      <span class="fix-file">claude-watcher.js:90</span>
+    </div>
+    <div class="fix-body">
+      <div class="fix-problem">
+        <div class="label">Problema</div>
+        <span>Su sessioni lunghe (.jsonl da MB), <code>readFileSync()</code> carica tutto in RAM ogni 10s per ogni progetto</span>
+      </div>
+      <div class="fix-arrow">→</div>
+      <div class="fix-solution">
+        <div class="label">Fix</div>
+        <span>Leggere solo gli ultimi <strong>32KB</strong> del file con <code>fs.readSync(fd, buf, 0, 32768, fileSize - 32768)</code> — sufficiente per 20+ righe JSONL. Stesso approccio anche per <code>readLastLine()</code>.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUG 5 -->
+  <div class="fix-card" style="border-left:3px solid #ffb300">
+    <div class="fix-header">
+      <span class="fix-num" style="background:rgba(255,179,0,0.12);color:#ffb300">5</span>
+      <h3>alert() / confirm() nativi</h3>
+      <span class="fix-file">ProjectCard.jsx:128,169</span>
+    </div>
+    <div class="fix-body">
+      <div class="fix-problem">
+        <div class="label">Problema</div>
+        <span><code>confirm("Escludere...")</code> e <code>alert("Errore")</code> — dialoghi di sistema grigi, bloccanti, fuori tema</span>
+      </div>
+      <div class="fix-arrow">→</div>
+      <div class="fix-solution">
+        <div class="label">Fix</div>
+        <span>Per <code>confirm</code>: stato <code>confirmingExclude</code> — il bottone ⊗ diventa inline "CONFERMA / ANNULLA" per 3s.<br>Per <code>alert</code> (errori): piccolo testo rosso sotto il bottone che scompare dopo 3s. Zero dipendenze.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- BUG 6 -->
+  <div class="fix-card" style="border-left:3px solid #64b5f6">
+    <div class="fix-header">
+      <span class="fix-num" style="background:rgba(100,181,246,0.12);color:#64b5f6">6</span>
+      <h3>Nessun rate limit su /terminal-windows</h3>
+      <span class="fix-file">server.js:232</span>
+    </div>
+    <div class="fix-body">
+      <div class="fix-problem">
+        <div class="label">Problema</div>
+        <span>Ogni chiamata avvia un processo PowerShell pesante (~150 righe). Nessun blocco se già in esecuzione per lo stesso progetto.</span>
+      </div>
+      <div class="fix-arrow">→</div>
+      <div class="fix-solution">
+        <div class="label">Fix</div>
+        <span>Map <code>pendingTerminalRequests</code> in server.js: se c'è già una richiesta in corso per quel progetto, risponde con 429 + messaggio. Il frontend mostra già lo stato <code>loadingTerminal</code> che disabilita il bottone — il fix backend è il secondo livello di protezione.</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<style>
+.fix-card { background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:10px; padding:16px 18px; }
+.fix-header { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
+.fix-header h3 { margin:0; font-size:0.88rem; flex:1; }
+.fix-num { width:26px; height:26px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:0.72rem; font-weight:700; flex-shrink:0; }
+.fix-file { font-family:monospace; font-size:0.65rem; background:rgba(255,255,255,0.07); padding:2px 8px; border-radius:4px; color:rgba(255,255,255,0.5); white-space:nowrap; }
+.fix-body { display:grid; grid-template-columns:1fr auto 1fr; gap:12px; align-items:start; }
+.fix-problem, .fix-solution { font-size:0.75rem; line-height:1.5; }
+.fix-problem code { font-family:monospace; font-size:0.7rem; background:rgba(255,255,255,0.06); padding:2px 5px; border-radius:3px; display:inline-block; margin:3px 0; }
+.fix-arrow { color:rgba(255,255,255,0.3); font-size:1.2rem; padding-top:18px; }
+</style>

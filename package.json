@@ -14,10 +14,15 @@
     "status:idle": "node update-status.js idle \"Idle\"",
     "status:error": "node update-status.js error \"Error occurred\""
   },
-  "keywords": ["dashboard", "claude-code", "monitoring"],
+  "keywords": [
+    "dashboard",
+    "claude-code",
+    "monitoring"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "puppeteer": "^24.41.0"
   }
 }
