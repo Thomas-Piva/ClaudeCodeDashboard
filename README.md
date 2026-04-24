@@ -4,16 +4,16 @@
 
 # Dashboard Claude Code
 
-**Monitoraggio in tempo reale · Ricerca full-text · Analytics · Notifiche Telegram · Wiki on-demand**
+**Monitoraggio in tempo reale · Ricerca full-text · Analytics · Notifiche Telegram · Knowledge Base on-demand**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/react-18.2.0-blue)](https://reactjs.org/)
-[![Version](https://img.shields.io/badge/version-7.2.0-purple)](https://github.com/Attilio81/ClaudeCodeDashboard)
+[![Version](https://img.shields.io/badge/version-8.0.0-purple)](https://github.com/Attilio81/ClaudeCodeDashboard)
 
-*Monitora N sessioni Claude Code parallele, cerca nei messaggi passati, analizza i pattern di utilizzo, ricevi notifiche push su Telegram, e genera una knowledge base Markdown dal tuo storico quando vuoi tu.*
+*Monitora N sessioni Claude Code parallele, cerca nei messaggi passati, analizza i pattern di utilizzo, ricevi notifiche push su Telegram, e genera una knowledge base Markdown strutturata dal tuo codebase quando vuoi tu.*
 
-[Avvio Rapido](#-avvio-rapido) • [Funzionalità](#-funzionalità) • [Wiki EGM](#-wiki-egm) • [Come Funziona](#-come-funziona) • [Configurazione](#-configurazione) • [API](#-api-reference) • [Troubleshooting](#-troubleshooting)
+[Avvio Rapido](#-avvio-rapido) • [Funzionalità](#-funzionalità) • [Knowledge Base](#-knowledge-base) • [Come Funziona](#-come-funziona) • [Configurazione](#-configurazione) • [API](#-api-reference) • [Troubleshooting](#-troubleshooting)
 
 </div>
 
@@ -65,13 +65,12 @@ Pannello accessibile con **⚙ ADMIN** nell'header:
 - Aggiungi / rimuovi cartelle radice di scansione
 - **Riscansiona Ora** — trova nuovi progetti senza riavviare il server
 - Ripristina percorsi esclusi
-- **Wiki EGM** — configura provider LLM e lancia il backfill completo
 
 ---
 
-## Wiki EGM
+## Knowledge Base
 
-La dashboard può generare una **knowledge base Markdown navigabile con Obsidian** dalle sessioni Claude Code indicizzate.
+La dashboard si integra con un sistema di documentazione tecnica basato su **5 slash command Claude Code** che scrivono direttamente in un vault Obsidian condiviso — senza LLM esterni, senza backend, senza API key aggiuntive.
 
 ### Il Problema
 
@@ -79,128 +78,85 @@ Col tempo si accumulano centinaia di sessioni che contengono decisioni architett
 
 ### La Soluzione
 
-Due script cooperano:
+5 comandi slash, ognuno con uno scopo preciso:
 
-| File | Ruolo |
-|------|-------|
-| `backend/wiki-backfill.js` | Scansiona tutto il DB, raggruppa per progetto, legge i file sorgente realmente toccati nelle sessioni e chiama un LLM per generare pagine Markdown |
-| `backend/wiki-ingest.js` | Genera/aggiorna la pagina wiki di una singola sessione — chiamato on-demand via `/aggiornawiki` |
+| Comando | Quando usarlo | Area wiki |
+|---------|--------------|-----------|
+| `/analizzacodebase` | Prima analisi di un progetto / dopo refactor grosso | `Architettura/` |
+| `/aggiornacodebase` | Dopo modifiche puntuali al codice | `Architettura/` |
+| `/aggiornawiki <nota>` | Dopo ogni sessione significativa (bug fix, feature, decisione) | `Sessioni/` |
+| `/aggiornamanuale <nota>` | Quando cambia come si usa il software | `Manuali/` |
+| `/aggiornarilasci <versione>` | Prima o dopo un deploy | `Rilasci/` |
 
-Le pagine Markdown sono compatibili con Obsidian (`[[wikilinks]]`, tabelle, blocchi codice).
+Claude scrive direttamente nella wiki usando i suoi tool — nessuna chiamata a provider LLM esterni.
 
-### Struttura Cartelle
-
-La wiki rispecchia la struttura dei tuoi progetti: la cartella corrisponde alla root del progetto, il file al modulo specifico.
-
-```
-MyWiki/
-├── BIZ2017/
-│   ├── bneg0007.md
-│   ├── bneg0128.md
-│   └── bnegas05.md
-├── ProgettiEgm/
-│   ├── controllopadordini.md
-│   └── gestionaleapi.md
-├── Progetti-Pilota/
-│   └── agentevendite.md
-└── BUSEXP/
-    └── bneg0013.md
-```
-
-### Come vengono scelti i file sorgente
-
-Lo script analizza i blocchi `tool_use` nel file `.jsonl` raw della sessione ed estrae i `file_path` dei tool `Read`, `Edit` e `Write` effettivamente usati da Claude — solo i file realmente toccati, non l'intera codebase.
-
-### Aggiornamento On-Demand: `/aggiornawiki`
-
-La wiki **non si aggiorna automaticamente**. Sei tu a decidere quando e cosa documentare.
-
-Il comando è uno slash command di Claude Code — Claude scrive direttamente nella wiki usando i suoi tool, senza chiamate a provider LLM esterni.
-
-**Comportamento:**
-- Se la sezione che vuoi documentare **non esiste** → viene creata con una riga cronologia
-- Se la sezione **esiste già** → Claude la riscrive con le info aggiornate e aggiunge una voce alla cronologia
-
-Ogni sezione ha un titolo semantico stabile e una riga di audit trail:
-
-```markdown
-## Logica calcolo commissioni
-
-La funzione applica 2% se il cliente ha pagato entro 30gg...
-
-> *Cronologia: 2026-04-19 attilio.pregnolato — prima stesura · 2026-04-21 mario.rossi — aggiunto caso fornitore estero*
-```
-
-**Installazione** (una volta sola — vedi `/guida` nella dashboard per il testo completo del comando):
-
-```bash
-mkdir -p ~/.claude/commands
-# copia il contenuto di GUIDA-COLLEGHI.md nella sezione "Installa il comando /aggiornawiki"
-```
-
-**Utilizzo:**
+### Struttura Vault
 
 ```
-/aggiornawiki la logica di validazione in BNEG0112: controlla prima
-il flag ATTIVO in CLIENTI, poi la scadenza in CONTRATTI
+Wiki-Egm/
+├── Sessioni/               ← /aggiornawiki       (cosa è successo)
+│   ├── BIZ2017/
+│   │   └── bneg0112.md
+│   └── ProgettiEgm/
+│       └── controllopadordini.md
+│
+├── Architettura/           ← /analizzacodebase, /aggiornacodebase  (com'è fatto il codice)
+│   └── BIZ2017/
+│       └── bneg0112/
+│           ├── _overview.md
+│           └── BNEG0112.md
+│
+├── Manuali/                ← /aggiornamanuale    (come si usa — utenti finali)
+│   └── BIZ2017/
+│       └── bneg0112.md
+│
+└── Rilasci/                ← /aggiornarilasci    (note di rilascio — IT/sviluppatori)
+    └── BIZ2017/
+        └── bneg0112-v1.5.md
+```
+
+### /analizzacodebase e /aggiornacodebase
+
+`/analizzacodebase` scansiona tutti i file sorgente del progetto corrente (`.vb`, `.cs`, `.js`, `.ts`, `.py`, ecc.) e genera un documento per file in `Architettura/` con layer architetturale, dipendenze e funzioni chiave.
+
+`/aggiornacodebase` è la versione incrementale: rianalizza solo i file cambiati dall'ultima analisi, propagando l'aggiornamento ai file che dipendono da quelli modificati tramite il campo `depends_on` nel frontmatter.
+
+Ogni pagina ha frontmatter YAML che alimenta il Graph View di Obsidian:
+
+```yaml
+---
+layer: service
+depends_on:
+  - database
+  - clienti
+last_analyzed: 2026-04-24
+---
+```
+
+### /aggiornawiki
+
+Log di sessione. Traccia cosa è stato fatto, perché, quali decisioni prese.
+
+```
+/aggiornawiki ho corretto il calcolo delle commissioni in Ordini.vb,
+il problema era nel round finale
 ```
 
 Claude determina il file dalla directory corrente (`BIZ2017/bneg0112.md`), legge il file se esiste, aggiorna o crea la sezione, firma con data e utente.
 
-### Backfill Completo
-
-Prima volta o dopo molte sessioni accumulate:
-
-```bash
-node --env-file=.env backend/wiki-backfill.js
-```
-
-Oppure dal pannello **Admin → Wiki EGM → GENERA WIKI DA SESSIONI**.
-
-### Configurazione (`wiki-settings.json`)
-
-Tutta la configurazione è in `backend/wiki-settings.json`:
-
-```json
-{
-  "wikiPath": "C:\\MyWiki",
-  "sessionFilter": ["BIZ2017", "ProgettiEgm", "BUSEXP"],
-  "excludeFilter": ["observer", "Dashboard"],
-  "sourceExtensions": [".vb", ".cs", ".ts", ".js", ".py", ".jsx", ".tsx"],
-  "systemPrompt": "Sei un agente di estrazione della conoscenza tecnica...",
-  "provider": {
-    "baseURL": "https://api.deepseek.com",
-    "model": "deepseek-chat",
-    "apiKeyEnv": "DEEPSEEK_API_KEY"
-  }
-}
-```
-
-| Campo | Descrizione |
-|-------|-------------|
-| `wikiPath` | Cartella Obsidian di destinazione |
-| `sessionFilter` | Pattern per includere sessioni (match parziale sul nome progetto) |
-| `excludeFilter` | Pattern per escludere sessioni |
-| `sourceExtensions` | Estensioni file sorgente da leggere e passare all'LLM |
-| `systemPrompt` | Prompt personalizzato per il modello |
-| `provider` | Configurazione LLM: URL, modello, variabile env della API key |
-
-### Provider LLM
-
-Tutti i provider usano l'interfaccia OpenAI-compatibile:
-
-| Provider | `baseURL` | `model` | `apiKeyEnv` |
-|----------|-----------|---------|-------------|
-| DeepSeek V3 | `https://api.deepseek.com` | `deepseek-chat` | `DEEPSEEK_API_KEY` |
-| OpenAI | `https://api.openai.com/v1` | `gpt-4o`, `gpt-4o-mini` | `OPENAI_API_KEY` |
-| LM Studio | `http://localhost:1234/v1` | nome modello caricato | — |
-| Ollama | `http://localhost:11434/v1` | `llama3`, `mistral`, … | — |
-
-Dall'**Admin → Wiki EGM → Provider LLM**: preset con un click + campi manuali.
-
 ### Wiki Condivisa in Rete
 
-Punta `wikiPath` a una cartella di rete (`\\\\SERVER\\Wiki\\EGM-Wiki`) e ogni collega che usa la dashboard alimenta la stessa knowledge base. Nessun conflitto: ogni macchina lavora su progetti diversi, ogni `/aggiornawiki` scrive file diversi.
+Punta `wikiPath` in `~/.claude/wiki-config.json` a una cartella di rete:
+
+```json
+{ "wikiPath": "\\\\SERVER\\Wiki\\EGM-Wiki" }
+```
+
+Ogni collega che usa i comandi alimenta la stessa knowledge base. Nessun conflitto: ogni macchina lavora su progetti diversi.
+
+### Installazione Comandi
+
+Copiare i file da `.claude/commands/` della repo in `~/.claude/commands/` e creare `~/.claude/wiki-config.json` con il percorso wiki. Vedi `Manuale d'uso/` nel vault per le istruzioni complete.
 
 ---
 
@@ -283,7 +239,7 @@ npm install
 cd backend && npm install
 cd ../frontend && npm install && cd ..
 
-# 3. (Opzionale) Configura Telegram e LLM per wiki
+# 3. (Opzionale) Configura Telegram
 cp backend/.env.example backend/.env
 # Modifica backend/.env con i tuoi token
 
@@ -343,12 +299,11 @@ chmod +x ~/.claude/hooks/hook-event.sh
 
 Oppure usa l'**Area Admin** nell'interfaccia.
 
-### Telegram + Wiki (`backend/.env`)
+### Telegram (`backend/.env`)
 
 ```env
 TELEGRAM_TOKEN=<token-del-bot>
 TELEGRAM_CHAT_ID=<chat-id>
-DEEPSEEK_API_KEY=<chiave-deepseek>
 ```
 
 Come ottenere i valori Telegram:
@@ -356,7 +311,7 @@ Come ottenere i valori Telegram:
 2. Invia `/start` al bot dalla chat dove vuoi ricevere le notifiche
 3. Visita `https://api.telegram.org/bot<TOKEN>/getUpdates` per leggere il `chat.id`
 
-Se `.env` non è presente, Telegram e wiki vengono silenziosamente disabilitati.
+Se `.env` non è presente, Telegram viene silenziosamente disabilitato.
 
 ### Percorsi esclusi
 
@@ -384,7 +339,6 @@ Popolato automaticamente con il bottone **⊗** su ogni card. Per ripristinare: 
 | **Backend** | Node.js >= 18, Express, ws, chokidar, better-sqlite3 (FTS5) |
 | **Frontend** | React 18.2, Vite 5, react-router-dom v7 |
 | **Database** | SQLite 3 con FTS5 (full-text search, WAL mode) |
-| **Wiki LLM** | OpenAI SDK (compatibile con DeepSeek, LM Studio, OpenAI, Ollama) |
 | **Notifiche** | Telegram Bot API (native fetch — nessuna dipendenza aggiuntiva) |
 | **Font** | Syne (Google Fonts), JetBrains Mono |
 | **Piattaforma** | Windows — PowerShell + UIAutomation per rilevamento terminale |
@@ -402,12 +356,9 @@ DashboardClaudeCode/
 │   ├── db.js                  # SQLite layer (FTS5, schema, query helpers)
 │   ├── telegram.js            # Helper Telegram Bot API (native fetch)
 │   ├── path-scanner.js        # Discovery da cartelle radice
-│   ├── wiki-backfill.js       # Genera wiki da tutte le sessioni (backfill)
-│   ├── wiki-ingest.js         # Genera/aggiorna wiki per una singola sessione
-│   ├── wiki-settings.json     # Configurazione wiki (path, filtri, provider, prompt)
 │   ├── scan-paths.json        # Cartelle radice da scansionare
 │   ├── excluded-paths.json    # Percorsi esclusi dal monitoraggio
-│   ├── .env                   # Credenziali Telegram + LLM (gitignored)
+│   ├── .env                   # Credenziali Telegram (gitignored)
 │   ├── .env.example           # Template variabili d'ambiente
 │   ├── agentsview.db          # Database SQLite (creato al primo avvio, gitignored)
 │   └── package.json
@@ -422,9 +373,19 @@ DashboardClaudeCode/
 │   │       ├── ProjectCard.jsx        # Card progetto con azioni + hook badge
 │   │       ├── SessionList.jsx        # Lista sessioni inline per card
 │   │       ├── SearchBar.jsx          # Modal ricerca Cmd+K
-│   │       └── AdminPanel.jsx         # Pannello configurazione + Wiki EGM
+│   │       └── AdminPanel.jsx         # Pannello configurazione scan roots
 │   ├── index.html
 │   └── package.json
+├── .claude/
+│   └── commands/              # Slash command knowledge base (copiare in ~/.claude/commands/)
+│       ├── analizzacodebase.md
+│       ├── aggiornacodebase.md
+│       ├── aggiornawiki.md
+│       ├── aggiornamanuale.md
+│       └── aggiornarilasci.md
+├── Modelli/
+│   ├── template_manuale_utente.md     # Template per /aggiornamanuale
+│   └── template_note_rilascio.md      # Template per /aggiornarilasci
 ├── start.bat                  # Avvio rapido Windows
 ├── package.json
 └── README.md
@@ -495,12 +456,6 @@ DashboardClaudeCode/
 | `POST` | `/api/admin/rescan` | Riscansiona senza riavvio |
 | `GET` | `/api/admin/excluded-paths` | Lista percorsi esclusi |
 | `DELETE` | `/api/admin/excluded-paths/:index` | Ripristina percorso |
-| `GET` | `/api/admin/wiki-settings` | Leggi impostazioni wiki |
-| `POST` | `/api/admin/wiki-settings` | Salva impostazioni wiki |
-| `POST` | `/api/admin/wiki-settings/categories` | Aggiungi categoria |
-| `DELETE` | `/api/admin/wiki-settings/categories/:name` | Rimuovi categoria |
-| `POST` | `/api/admin/wiki-backfill` | Avvia backfill completo in background |
-| `POST` | `/api/admin/wiki-ingest-latest` | Ingest sessione corrente (body: `{ "cwd": "C:\\..." }`) |
 
 ---
 
@@ -571,18 +526,12 @@ Windows blocca `SetForegroundWindow` dai processi in background. La dashboard us
 </details>
 
 <details>
-<summary><b>Wiki: `/aggiornawiki` risponde "Nessuna sessione trovata"</b></summary>
+<summary><b>I comandi /analizzacodebase o /aggiornawiki non trovano i file</b></summary>
 
-La sessione corrente deve essere stata indicizzata almeno una volta. Verifica che il watcher sia attivo e che il progetto sia nelle `scan-paths.json`. Prova ad aspettare qualche secondo dopo aver lavorato nella sessione.
-
-</details>
-
-<details>
-<summary><b>Wiki backfill non genera pagine</b></summary>
-
-1. Verifica che la variabile API key sia valorizzata in `backend/.env`
-2. Controlla che `sessionFilter` in `wiki-settings.json` includa pattern che matchano i tuoi progetti
-3. Lancia manualmente con `node --env-file=.env backend/wiki-backfill.js` per vedere i log
+1. Verifica che `~/.claude/wiki-config.json` esista con `wikiPath` corretto
+2. Verifica che la share di rete sia accessibile: apri `\\egmsql\EGMStruttura\Wiki-Egm` da Esplora risorse
+3. Verifica che i file dei comandi siano in `~/.claude/commands/` (non solo nella repo)
+4. Consulta `Manuale d'uso/installazione` nel vault per le istruzioni complete
 
 </details>
 
@@ -592,29 +541,30 @@ La sessione corrente deve essere stata indicizzata almeno una volta. Verifica ch
 
 <small>
 
+**v8.0.0** (2026-04-24) — Knowledge System unificato
+- 5 slash command Claude Code sostituiscono completamente il pannello Admin wiki
+- `/analizzacodebase`: scansione completa codebase → `Architettura/` con frontmatter YAML e layer diagram
+- `/aggiornacodebase`: aggiornamento incrementale con propagazione inversa dipendenze via `depends_on`
+- `/aggiornawiki`, `/aggiornamanuale`, `/aggiornarilasci`: path aggiornati alla nuova struttura vault
+- Vault strutturato in 4 aree: `Sessioni/`, `Architettura/`, `Manuali/`, `Rilasci/`
+- `~/.claude/wiki-config.json`: configurazione centralizzata percorso wiki, nessun LLM esterno richiesto
+- Rimossi: `wiki-backfill.js`, `wiki-ingest.js`, `wiki-settings.json`, endpoint wiki backend, sezione Wiki EGM da AdminPanel
+- `Manuale d'uso/` nel vault: guida completa installazione e utilizzo per i colleghi
+
 **v7.2.0** (2026-04-19) — Wiki on-demand
-- `/aggiornawiki`: Claude scrive direttamente nella wiki senza LLM esterno — aggiorna sezioni esistenti in-place o crea nuove, con cronologia `data · utente · descrizione modifica`
-- Struttura wiki speculare ai path reali: `BIZ2017/modulo.md`, `ProgettiEgm/modulo.md`, ecc.
+- `/aggiornawiki`: Claude scrive direttamente nella wiki senza LLM esterno
 - Wiki condivisa su rete: `\\egmsql\EGMStruttura\Wiki-Egm`
-- Pagina `/guida` nella dashboard: installazione step-by-step per i colleghi
-- Rimossa ingestion automatica dal watcher: zero LLM call in background
-- Dedup heading-based: niente più sezioni duplicate da riformulazioni LLM
 
 **v7.1.0** (2026-04-18) — Wiki: source files enrichment
-- Backfill e ingest leggono i file sorgente realmente toccati nelle sessioni (via `tool_use` del JSONL raw)
-- `sourceExtensions` configurabile in `wiki-settings.json`
-- Prompt più restrittivo: proibisce contenuto inventato, pagina minimale se niente da estrarre
+- Backfill e ingest leggono i file sorgente realmente toccati nelle sessioni
 
 **v7.0.0** (2026-04-17) — Wiki EGM
 - `wiki-backfill.js`: genera pagine Markdown da tutte le sessioni via LLM
-- `wiki-settings.json`: parametrizzazione completa (filtri, prompt, provider LLM)
-- Admin → Wiki EGM: configurazione dall'interfaccia, preset provider con un click
 - Provider intercambiabili: DeepSeek V3, LM Studio, OpenAI, Ollama
 
 **v6.0.0** (2026-04-14) — Claude Code Hooks + Telegram
 - Hook status in tempo reale — nessun polling
 - Notifiche Telegram: `✅ sessione terminata` e `💥 errore Bash`
-- Colonne guidate da hook (priorità su file watcher per 30 min)
 
 **v5.0.0** (2026-04-13) — Search + Analytics + Session Viewer
 - Ricerca full-text `Ctrl+K` su tutte le sessioni (SQLite FTS5)
