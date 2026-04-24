@@ -36,6 +36,15 @@ coverage/
 
 # AgentsView SQLite database
 backend/agentsview.db
+backend/agentsview.db-shm
+backend/agentsview.db-wal
+backend/terminal-pids.json
+
+# Runtime/generated files
+icona.png
+.superpowers/
+Altro/*.sh
+Altro/*.ps1
 
 # Superpowers plans/specs and local Claude settings
 docs/superpowers/
