@@ -1,49 +1,67 @@
 Devi aggiungere una voce di changelog nella wiki Obsidian del progetto corrente.
 
-**Passaggio 1 — Recupera configurazione wiki**
+## Quando usarlo
+- Dopo ogni sessione significativa: bug fix, feature, decisione architettuale
+- NON usare per: documentazione utente → usa /aggiornamanuale
+- NON usare per: note di rilascio → usa /aggiornarilasci
+- NON usare per: analisi strutturale del codice → usa /analizzacodebase
 
-Esegui:
-```bash
-curl -s http://localhost:3001/api/admin/wiki-settings
-```
-Leggi il campo `wikiPath` dalla risposta.
+---
+
+**Passaggio 1 — Recupera il percorso wiki**
+
+Leggi il file:
+`C:\Users\attilio.pregnolato.EGMSISTEMI\.claude\wiki-config.json`
+
+Estrai il campo `wikiPath`.
 
 **Passaggio 2 — Determina il file di destinazione**
 
 Dal cwd corrente (esegui `pwd` se non lo conosci), calcola:
-- Rimuovi il prefisso drive (`/c/` → `C:\`, oppure già Windows)
-- Cartella wiki = tutto tranne l'ultimo componente del path (es. `/c/BIZ2017/BNEG0112` → cartella `BIZ2017`)
-- Progetto = ultimo componente lowercase (es. `bneg0112`)
-- Ricava la data odierna: `date +%Y-%m-%d`
-- Percorso completo: `{wikiPath}/{cartella}/{progetto}/aggiornamenti/{YYYY-MM-DD}.md`
+- Normalizza il path: `/c/BIZ2017/BNEG0112` → `C:\BIZ2017\BNEG0112`
+- `cartella` = penultimo componente (es. `BIZ2017`)
+- `modulo` = ultimo componente lowercase (es. `bneg0112`)
+- Percorso completo: `{wikiPath}\Sessioni\{cartella}\{modulo}.md`
 
 **Passaggio 3 — Contenuto da documentare**
 
 Se l'utente ha già descritto cosa documentare nel messaggio del comando, usalo.
 Se non è specificato, chiedi: *"Cosa è stato fatto? Descrivi le modifiche o le decisioni di questa sessione."*
 
-Ricava utente: `whoami`
-
-**Passaggio 4 — Scrivi il changelog**
-
-**Se il file non esiste:** crealo con questo formato:
+Ricava data e utente:
+```bash
+date +%Y-%m-%d
+whoami
 ```
-# Aggiornamenti {YYYY-MM-DD}
 
-**Progetto:** {progetto}
-**Autore:** {utente}
+**Passaggio 4 — Scrivi nel file**
+
+**Se il file non esiste:** crealo con:
+```
+# {modulo}
 
 ## {Titolo breve dell'intervento}
 
 {Descrizione di cosa è stato fatto, perché, e cosa ha cambiato}
+
+> *Cronologia: YYYY-MM-DD utente — prima stesura*
 ```
 
-**Se il file esiste già (stesso giorno):** leggilo con Read, poi aggiungi in fondo una nuova sezione `##` con il nuovo intervento.
+**Se il file esiste:** leggilo con Read, poi:
+- Cerca se esiste già una sezione `##` che descrive lo stesso argomento (confronto semantico)
+- **Trovata:** riscrivi il contenuto della sezione, aggiungi voce cronologia: `· YYYY-MM-DD utente — descrizione`
+- **Non trovata:** appendi nuova sezione `##` in fondo con `> *Cronologia: YYYY-MM-DD utente — prima stesura*`
+
+**Passaggio 5 — Aggiungi wikilink cross-area (opzionale)**
+
+Controlla se esiste `{wikiPath}\Architettura\{cartella}\{modulo}.md`.
+Se esiste, aggiungi in fondo alla sezione appena scritta:
+```
+→ Vedi anche: [[Architettura/{cartella}/{modulo}]]
+```
 
 **Regole:**
-- Ogni sezione `##` descrive un intervento distinto della sessione
 - Scrivi cosa è cambiato e perché — non solo "aggiornato X"
 - Usa blocchi codice per snippet SQL/VB/config rilevanti
-- Usa elenchi puntati per modifiche multiple
-- NON aggiornare il manuale del progetto — per quello usa `/aggiornamanuale`
+- NON aggiornare il manuale — per quello usa `/aggiornamanuale`
 - Conferma all'utente il percorso del file e se è nuovo o aggiornato
