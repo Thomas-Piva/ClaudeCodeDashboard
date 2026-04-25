@@ -1,102 +1,87 @@
-Devi aggiornare incrementalmente la documentazione architetturale nella wiki Obsidian, analizzando solo i file sorgente cambiati dall'ultima analisi.
+Devi aggiornare incrementalmente la documentazione architetturale nella wiki Obsidian (schema Karpathy), analizzando solo i file sorgente cambiati dall'ultima analisi.
 
 ## Quando usarlo
 - Dopo modifiche puntuali: aggiorna solo i file toccati
-- NON usare per la prima analisi → usa /analizzacodebase
-- NON usare dopo refactor grossi (rinominazioni, ristrutturazioni) → usa /analizzacodebase
+- NON usare per la prima analisi → usa `/analizzacodebase`
+- NON usare dopo refactor grossi (rinominazioni, ristrutturazioni) → usa `/analizzacodebase`
 
-**Nota:** gestisce dipendenze cross-file tramite propagazione inversa del campo `depends_on`. Dipendenze implicite non documentate non vengono rilevate — per consistenza totale usa /analizzacodebase.
+**Nota:** gestisce dipendenze cross-file tramite propagazione inversa di `depends_on`. Dipendenze implicite non documentate non vengono rilevate.
 
 ---
 
 **Passaggio 1 — Recupera il percorso wiki**
 
-Leggi il file:
-`C:\Users\attilio.pregnolato.EGMSISTEMI\.claude\wiki-config.json`
-
-Estrai il campo `wikiPath`.
+Leggi `~/.claude/wiki-config.json` ed estrai `wikiPath`.
 
 **Passaggio 2 — Identifica il progetto**
 
-Dal cwd corrente (esegui `pwd` se non lo conosci), calcola:
-- Normalizza il path: `/c/BIZ2017/BNEG0112` → `C:\BIZ2017\BNEG0112`
-- `cartella` = penultimo componente (es. `BIZ2017`)
-- `modulo` = ultimo componente lowercase (es. `bneg0112`)
-- `wikiDir` = `{wikiPath}\Architettura\{cartella}\{modulo}`
+Dal cwd:
+- `nome` = basename del cwd
+- `archDir` = `{wikiPath}/progetti/{nome}/Architettura`
 
-**Passaggio 3 — Scansiona i file sorgente**
+Se `archDir` non esiste, avvisa l'utente: *"Documentazione architettura assente. Esegui prima `/analizzacodebase`."*
 
-Elenca tutti i file sorgente nella directory corrente (ricorsivo):
+**Passaggio 3 — Scansiona file sorgente**
+
 ```bash
-find . -type f \( -iname "*.js" -o -iname "*.ts" -o -iname "*.jsx" -o -iname "*.tsx" -o -iname "*.py" -o -iname "*.cs" -o -iname "*.vb" \) \
+find . -type f \( -iname "*.js" -o -iname "*.ts" -o -iname "*.jsx" -o -iname "*.tsx" -o -iname "*.py" -o -iname "*.go" -o -iname "*.rs" -o -iname "*.cs" -o -iname "*.vb" -o -iname "*.java" \) \
   ! -path "*/node_modules/*" \
   ! -path "*/dist/*" \
   ! -path "*/build/*" \
   ! -path "*/vendor/*" \
-  ! -path "*/.git/*"
+  ! -path "*/.git/*" \
+  ! -path "*/__pycache__/*" \
+  ! -path "*/target/*"
 ```
 
-**Passaggio 4 — Classifica ogni file sorgente**
+**Passaggio 4 — Classifica ogni file**
 
-Per ogni file trovato, determina la categoria:
+Per ogni file determina:
 
-**A) File nuovo** — il wiki doc corrispondente non esiste in `{wikiDir}\{nome-file}.md`
-→ aggiungi a lista `da_analizzare`
+**A) Nuovo** — il wiki doc `{archDir}/{nome-file}.md` non esiste → `da_analizzare`
 
-**B) File modificato** — il wiki doc esiste. Controlla data ultima modifica git:
+**B) Modificato** — il wiki doc esiste. Confronta timestamp:
 ```bash
 git log --format="%ai" -1 -- {percorso-file}
 ```
-Se la data git è successiva al campo `last_analyzed` nel frontmatter del wiki doc → aggiungi a lista `da_analizzare`
-Se non ci sono commit per il file (untracked), usa data filesystem:
-```bash
-stat -c "%y" {percorso-file}
-```
+Se data git > `last_analyzed` nel frontmatter → `da_analizzare`.
+Se untracked, usa `stat -c "%y" {percorso-file}`.
 
-**C) File invariato** — data git ≤ `last_analyzed` → skip
+**C) Invariato** — data git ≤ `last_analyzed` → skip
 
-**Passaggio 5 — Rileva file orfani**
+**Passaggio 5 — File orfani**
 
-Controlla i file `.md` in `{wikiDir}\` (escludi `_overview.md`).
-Per ogni wiki doc, verifica che esista il file sorgente corrispondente.
-Se non esiste → aggiungi a lista `orfani` (da segnalare, non eliminare automaticamente).
+Lista i `.md` in `{archDir}/` (escludi `_overview.md`). Per ogni doc, verifica esistenza file sorgente. Se manca → `orfani` (solo segnala, non eliminare).
 
 **Passaggio 6 — Propagazione inversa dipendenze**
 
-Per ogni file in `da_analizzare`, ricava il nome base (es. `clienti.vb` → `clienti`).
+Per ogni file in `da_analizzare`, ricava il nome base. Per ogni doc in `{archDir}/`:
+- Leggi frontmatter
+- Se `depends_on` contiene il nome base → aggiungi quel sorgente a `da_analizzare`
 
-Per ogni wiki doc esistente in `{wikiDir}\`:
-- Leggi il frontmatter
-- Se `depends_on` contiene il nome base → il file sorgente corrispondente potrebbe essere stale
-- Aggiungi quel file sorgente a `da_analizzare` se non già presente
+Max 2 iterazioni per evitare loop.
 
-Ripeti finché la lista `da_analizzare` non si stabilizza (al massimo 2 iterazioni — evita loop).
+**Passaggio 7 — Analizza file in `da_analizzare`**
 
-**Passaggio 7 — Analizza i file in da_analizzare**
-
-Per ogni file in `da_analizzare`:
-1. Leggi il contenuto con Read
-2. Determina:
-   - **Cosa fa:** scopo del file in 1-2 frasi
-   - **Layer architetturale:** `api` | `service` | `data` | `ui` | `utility`
-   - **Dipendenze principali:** altri file o moduli da cui dipende
-   - **Funzioni/classi chiave:** lista delle entità principali esposte
-3. Scrivi/sovrascrivi `{wikiDir}\{nome-file}.md`:
+Per ognuno:
+1. Read del file
+2. Determina layer, dipendenze, funzioni/classi chiave
+3. Scrivi/sovrascrivi `{archDir}/{nome-file}.md`:
 
 ````markdown
 ---
 layer: {api|service|data|ui|utility}
 depends_on:
   - {dipendenza1}
-  - {dipendenza2}
 last_analyzed: {YYYY-MM-DD}
+source: {percorso/relativo}
 ---
 
 # {nome-file}
 
 ## Scopo
 
-{Cosa fa in 2-3 frasi}
+{2-3 frasi}
 
 ## Funzioni / Classi Principali
 
@@ -106,93 +91,70 @@ last_analyzed: {YYYY-MM-DD}
 
 ## Dipendenze
 
-- `{file-o-modulo}` — {perché è usato}
+- `{file-o-modulo}` — {perché}
 
 ## Note
 
-{Eventuali dettagli rilevanti: pattern usati, vincoli, comportamenti non ovvi}
+{Pattern, vincoli. Usa `⚠️ da verificare:` per dubbi.}
 ````
 
-**Passaggio 8 — Rigenera _overview.md**
+**Passaggio 8 — Rigenera `_overview.md`**
 
-Se almeno un file è stato aggiornato o creato, rigenera `{wikiDir}\_overview.md` leggendo i frontmatter di tutti i wiki doc esistenti (non rileggere i sorgenti — usa solo i dati già in wiki):
+Se almeno 1 file aggiornato, rigenera `{archDir}/_overview.md` leggendo i frontmatter di tutti i doc esistenti (no rilettura sorgenti):
 
 ````markdown
 ---
 last_analyzed: {YYYY-MM-DD}
+project: {nome}
 ---
 
-# {modulo} — Architettura
+# {nome} — Architettura
 
 ## Layer Diagram
 
 ```
-[ui]       → {file-ui1}, {file-ui2}
-[api]      → {file-api1}
-[service]  → {file-service1}, {file-service2}
-[data]     → {file-data1}
-[utility]  → {file-util1}
+[ui]       → ...
+[api]      → ...
+[service]  → ...
+[data]     → ...
+[utility]  → ...
 ```
 
 ## Moduli
 
 | File | Layer | Scopo |
 |------|-------|-------|
-| [[{nome-file}]] | {layer} | {scopo breve} |
+| [[Architettura/{nome-file}\|{nome-file}]] | {layer} | {scopo breve} |
 
 ## Dipendenze Principali
 
-{Grafico testuale delle dipendenze più importanti}
+{Grafico testuale}
 
 ## Entry Points
 
-{Quali file sono i punti di ingresso del sistema}
+{File entry}
 ````
 
-Controlla anche wikilinks Sessioni/ — se `{wikiPath}\Sessioni\{cartella}\` contiene file, aggiungi:
-```markdown
-## Sessioni di lavoro
+**Passaggio 9 — Append a `log.md` root**
 
-- [[Sessioni/{cartella}/{modulo}]]
+```markdown
+## [{YYYY-MM-DD}] /aggiornacodebase | {nome} | {N} aggiornati, {N} nuovi, {N} orfani
 ```
 
-**Passaggio 9 — Rapporto finale**
+**Passaggio 10 — Aggiorna `index.md` root**
 
-Comunica all'utente:
-- `{N} file aggiornati`: lista nomi
-- `{N} file nuovi`: lista nomi
-- `{N} file invariati`: solo conteggio
-- `{N} file orfani`: lista nomi + avviso "verificare se eliminare manualmente da wiki"
-- Percorso overview: `{wikiDir}\_overview.md`
+Aggiorna riga `{nome}` colonna **Architettura** (se non già presente). Aggiorna `last_updated`.
 
-**Passaggio 10 — Aggiorna index radice**
+**Passaggio 11 — Rapporto finale**
 
-Leggi `{wikiPath}\index.md`.
-
-**Se non esiste**, crealo:
-```markdown
----
-last_updated: {YYYY-MM-DD}
----
-
-# Wiki EGM — Index
-
-## {cartella}
-
-| Modulo | Architettura | Sessioni | Manuali | Rilasci |
-|--------|-------------|---------|---------|---------|
-| {modulo} | [[Architettura/{cartella}/{modulo}/_overview\|✓]] | — | — | — |
-```
-
-**Se esiste**:
-1. Cerca `## {cartella}` — se manca, aggiungila con tabella
-2. Cerca riga `{modulo}` nella tabella — se manca, aggiungila con `—` in tutte le colonne
-3. Aggiorna colonna **Architettura**: sostituisci `—` con `[[Architettura/{cartella}/{modulo}/_overview|✓]]` (se già ha un link, lascia invariato)
-4. Aggiorna `last_updated: {YYYY-MM-DD}`
+- `{N}` aggiornati: lista nomi
+- `{N}` nuovi: lista nomi
+- `{N}` invariati: solo conteggio
+- `{N}` orfani: lista + avviso "verificare se eliminare manualmente"
+- Path overview: `{archDir}/_overview.md`
 
 **Regole:**
-- Non eliminare mai file wiki automaticamente — solo segnala orfani
-- Naming convention stabile: nome wiki = nome file sorgente senza estensione
-- La propagazione dipendenze è limitata a 2 iterazioni — se ci sono dipendenze circolari non si blocca
-- Audience: sviluppatori tecnici
-- **Accuratezza:** scrivi solo ciò che è esplicitamente leggibile nel codice. Se il comportamento di una funzione o dipendenza non è chiaro dalla lettura, chiedi all'utente prima di scrivere — non inventare. Se qualcosa rimane ambiguo dopo la risposta, segnalalo nella sezione Note con `⚠️ da verificare: {dubbio}`.
+- Non eliminare wiki doc automaticamente — solo segnala orfani
+- Naming stabile: nome wiki = nome sorgente senza estensione
+- Propagazione limitata a 2 iter
+- **Accuratezza:** solo ciò che è leggibile dal codice. Ambiguo → chiedi o `⚠️ da verificare:`

@@ -1,10 +1,22 @@
 import chokidar from 'chokidar';
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { indexSession } from './indexer.js';
+import { linuxPathToClaudeDirName, getClaudeProjectsDirUnc } from './wsl-utils.js';
 
-const CLAUDE_DIR = path.join(os.homedir(), '.claude', 'projects');
+const CLAUDE_DIR = getClaudeProjectsDirUnc();
+
+// chokidar opts per UNC (\\wsl.localhost\): inotify non funziona, serve polling
+const UNC_WATCH_OPTS = {
+  persistent: true,
+  usePolling: true,
+  interval: 1500,
+  binaryInterval: 3000,
+  awaitWriteFinish: {
+    stabilityThreshold: 200,
+    pollInterval: 100
+  }
+};
 
 export class ClaudeSessionWatcher {
   constructor(projects, onUpdate, onConfigChange = null, onNewProjectDir = null) {
@@ -23,16 +35,9 @@ export class ClaudeSessionWatcher {
     this.projectsWatcher = null; // Watcher sulla directory .claude/projects
   }
 
-  // Converti path progetto in nome directory Claude
+  // Converti path progetto Linux in nome directory Claude
   projectPathToClaudeDirName(projectPath) {
-    const base = projectPath
-      .replace(/:\\/g, '--')
-      .replace(/\\/g, '-')
-      .replace(/\//g, '-')
-      .replace(/\s+/g, '-')
-      .replace(/^-/, '');
-    // Claude Code sostituisce ogni byte non-ASCII con '-' (es. 'à' = 2 byte → '--')
-    return base.replace(/[^\x00-\x7F]/g, c => '-'.repeat(Buffer.byteLength(c, 'utf8')));
+    return linuxPathToClaudeDirName(projectPath);
   }
 
   // Trova file sessione attivo in una directory progetto
@@ -343,14 +348,10 @@ export class ClaudeSessionWatcher {
     // Leggi stato iniziale
     this.readAndBroadcastSession(project, sessionFile);
 
-    // Monitora modifiche al file sessione
+    // Monitora modifiche al file sessione (UNC → polling)
     const watcher = chokidar.watch(sessionFile, {
-      persistent: true,
-      ignoreInitial: false,
-      awaitWriteFinish: {
-        stabilityThreshold: 100,
-        pollInterval: 50
-      }
+      ...UNC_WATCH_OPTS,
+      ignoreInitial: false
     });
 
     watcher
@@ -412,13 +413,10 @@ export class ClaudeSessionWatcher {
     console.log('🔍 Avvio auto-discovery dinamico...\n');
 
     this.projectsWatcher = chokidar.watch(CLAUDE_DIR, {
-      persistent: true,
+      ...UNC_WATCH_OPTS,
       ignoreInitial: true,
       depth: 2,
-      awaitWriteFinish: {
-        stabilityThreshold: 1000,
-        pollInterval: 200
-      }
+      interval: 3000
     });
 
     this.projectsWatcher
@@ -475,11 +473,10 @@ export class ClaudeSessionWatcher {
             if (idx !== -1) this.watchers.splice(idx, 1);
           }
 
-          // Avvia watcher sul nuovo file
+          // Avvia watcher sul nuovo file (UNC → polling)
           const watcher = chokidar.watch(latestFile, {
-            persistent: true,
-            ignoreInitial: true,
-            awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 }
+            ...UNC_WATCH_OPTS,
+            ignoreInitial: true
           });
           watcher.on('change', () => {
             this.readAndBroadcastSession(project, latestFile);

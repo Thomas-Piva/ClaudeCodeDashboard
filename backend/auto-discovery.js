@@ -1,70 +1,51 @@
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
+import { claudeDirNameToLinuxPath, getClaudeProjectsDirUnc } from './wsl-utils.js';
 
-const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
-
-// Percorsi da escludere dal monitoraggio (es. directory di sistema Claude)
-const EXCLUDED_PATHS = [
-  path.join(os.homedir(), '.claude'),
-  path.join(os.homedir(), '.claude', 'projects'),
+const SYSTEM_EXCLUDED = [
+  '/home/thomas/.claude',
+  '/home/thomas/.claude/projects',
 ];
 
 /**
- * Converte nome directory Claude in path originale
- * Esempio: "C--BIZ2017-BNRG0022" -> "C:\\BIZ2017\\BNRG0022"
- */
-function claudeDirNameToPath(dirName) {
-  // Rimuovi i trattini e ricostruisci il path
-  return dirName
-    .replace(/^([A-Z])--/, '$1:\\')  // C-- -> C:\
-    .replace(/-/g, '\\');             // Altri trattini -> backslash
-}
-
-/**
- * Scopre automaticamente tutti i progetti con sessioni Claude Code attive
- * @returns Array di oggetti {name, path}
+ * Auto-discovery progetti dalle session dirs in WSL ~/.claude/projects.
+ * Decode dirname (es "-home-thomas-Costruzione-Memory") → path Linux.
  */
 export function discoverProjects(excludedPaths = []) {
-  console.log('🔍 Auto-discovery progetti da:', CLAUDE_PROJECTS_DIR);
+  const claudeProjectsUnc = getClaudeProjectsDirUnc();
+  console.log('🔍 Auto-discovery progetti da:', claudeProjectsUnc);
 
-  if (!fs.existsSync(CLAUDE_PROJECTS_DIR)) {
-    console.log('⚠️  Directory sessioni Claude non trovata');
+  if (!fs.existsSync(claudeProjectsUnc)) {
+    console.log('⚠️  Directory sessioni Claude WSL non trovata');
     return [];
   }
 
   try {
-    const dirs = fs.readdirSync(CLAUDE_PROJECTS_DIR, { withFileTypes: true });
+    const dirs = fs.readdirSync(claudeProjectsUnc, { withFileTypes: true });
     const projects = [];
 
     for (const dir of dirs) {
       if (!dir.isDirectory()) continue;
 
-      const dirPath = path.join(CLAUDE_PROJECTS_DIR, dir.name);
-
-      // Verifica che ci sia almeno un file .jsonl (sessione attiva o passata)
+      const dirPath = path.join(claudeProjectsUnc, dir.name);
       const files = fs.readdirSync(dirPath);
       const hasSession = files.some(f => f.endsWith('.jsonl'));
-
       if (!hasSession) continue;
 
-      // Converti nome directory in path originale
-      const projectPath = claudeDirNameToPath(dir.name);
+      const projectPath = claudeDirNameToLinuxPath(dir.name);
+      if (!projectPath) continue;
 
-      // Escludi percorsi di sistema
-      if (EXCLUDED_PATHS.some(excluded => projectPath.toLowerCase() === excluded.toLowerCase())) {
-        console.log(`  ⏭️  Escluso (percorso sistema): ${projectPath}`);
+      if (SYSTEM_EXCLUDED.some(ex => ex === projectPath)) {
+        console.log(`  ⏭️  Escluso (sistema): ${projectPath}`);
         continue;
       }
 
-      // Escludi percorsi nella lista esclusioni utente
-      if (excludedPaths.some(ep => ep.toLowerCase() === projectPath.toLowerCase())) {
-        console.log(`  ⏭️  Escluso (lista utente): ${projectPath}`);
+      if (excludedPaths.some(ep => ep === projectPath)) {
+        console.log(`  ⏭️  Escluso (utente): ${projectPath}`);
         continue;
       }
 
-      // Usa ultimo segmento del path come nome
-      const projectName = path.basename(projectPath);
+      const projectName = path.posix.basename(projectPath);
 
       projects.push({
         name: projectName,
@@ -73,7 +54,7 @@ export function discoverProjects(excludedPaths = []) {
         sessionCount: files.filter(f => f.endsWith('.jsonl')).length
       });
 
-      console.log(`  ✅ ${projectName} (${files.filter(f => f.endsWith('.jsonl')).length} sessioni)`);
+      console.log(`  ✅ ${projectName} (${projects[projects.length - 1].sessionCount} sessioni)`);
     }
 
     console.log(`\n🎉 Trovati ${projects.length} progetti\n`);
@@ -84,9 +65,6 @@ export function discoverProjects(excludedPaths = []) {
   }
 }
 
-/**
- * Verifica se auto-discovery è abilitato
- */
 export function isAutoDiscoveryEnabled() {
   return process.env.AUTO_DISCOVERY !== 'false';
 }

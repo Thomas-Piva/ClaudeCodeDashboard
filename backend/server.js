@@ -10,9 +10,15 @@ import { fileURLToPath } from 'url';
 import { exec, spawn } from 'child_process';
 import { ClaudeSessionWatcher } from './claude-watcher.js';
 import { discoverFromRoots, loadScanPaths, saveScanPaths } from './path-scanner.js';
-import { listSessions, getSession, getMessages, searchMessages, getAnalytics } from './db.js';
+import { listSessions, getSession, getMessages, searchMessages, getAnalytics, getSessionUpdatedAt } from './db.js';
 import { indexSession } from './indexer.js';
 import { sendTelegram } from './telegram.js';
+import {
+  loadWslConfig,
+  linuxPathToClaudeDirName,
+  linuxPathToUnc,
+  getClaudeProjectsDirUnc
+} from './wsl-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -126,19 +132,46 @@ function handleNewProjectDir(claudeDirName) {
 // ── Catch-up indexing on startup ─────────────────────
 (async () => {
   try {
-    const claudeDir = path.join(os.homedir(), '.claude', 'projects');
-    if (fs.existsSync(claudeDir)) {
-      const projectDirs = fs.readdirSync(claudeDir);
-      for (const dir of projectDirs) {
-        const dirPath = path.join(claudeDir, dir);
-        if (!fs.statSync(dirPath).isDirectory()) continue;
-        const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jsonl'));
-        for (const file of files) {
-          await new Promise(r => setImmediate(r)); // yield between files
-          indexSession(path.join(dirPath, file), dir);
-        }
+    const claudeDir = getClaudeProjectsDirUnc();
+    if (!fs.existsSync(claudeDir)) return;
+
+    // Filtra dirs: skip quelli che mappano a path esclusi.
+    // Decoder dir→linux è lossy, quindi confrontiamo tramite encoding forward:
+    // un dir è escluso se il suo nome inizia con il prefix encoded di un excluded path.
+    const excludedPathsList = loadExcludedPaths();
+    const excludedPrefixes = excludedPathsList.map(ex => linuxPathToClaudeDirName(ex));
+    const isExcluded = (dirName) => {
+      return excludedPrefixes.some(p => dirName === p || dirName.startsWith(p + '-'));
+    };
+
+    let indexed = 0, skippedExcluded = 0, skippedUnchanged = 0, reindexed = 0;
+    const projectDirs = fs.readdirSync(claudeDir);
+    for (const dir of projectDirs) {
+      const dirPath = path.join(claudeDir, dir);
+      if (!fs.statSync(dirPath).isDirectory()) continue;
+      if (isExcluded(dir)) {
+        skippedExcluded++;
+        continue;
       }
+      const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.jsonl'));
+      for (const file of files) {
+        await new Promise(r => setImmediate(r));
+        const filePath = path.join(dirPath, file);
+        // Skip se file invariato dall'ultimo index (mtime <= updated_at + 1s tolleranza)
+        try {
+          const mtimeMs = fs.statSync(filePath).mtimeMs;
+          const lastIndexed = getSessionUpdatedAt(filePath);
+          if (lastIndexed && mtimeMs <= lastIndexed + 1000) {
+            skippedUnchanged++;
+            continue;
+          }
+        } catch {}
+        indexSession(filePath, dir);
+        reindexed++;
+      }
+      indexed++;
     }
+    console.log(`📚 Catch-up indexing: ${indexed} progetti, ${reindexed} sessioni (re)indicizzate, ${skippedUnchanged} invariate, ${skippedExcluded} progetti esclusi`);
   } catch (err) {
     console.error('Catch-up indexing error:', err.message);
   }
@@ -212,8 +245,8 @@ app.post('/api/projects/:projectName/reset-status', (req, res) => {
   if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
   if (!project.path) return res.status(400).json({ error: 'Percorso progetto non configurato' });
 
-  // statusPath is fully server-controlled (no user input), so no traversal is possible
-  const statusPath = path.join(path.resolve(project.path), '.claude', 'status.json');
+  // project.path è Linux (es. /home/thomas/X) — converti UNC per scrittura da Windows
+  const statusPath = path.join(linuxPathToUnc(project.path), '.claude', 'status.json');
 
   const idleStatus = {
     status: 'idle',
@@ -286,11 +319,22 @@ app.post('/api/projects/:projectName/open-terminal', (req, res) => {
   const { projectName } = req.params;
   const project = config.projects.find(p => p.name === projectName);
   if (!project) return res.status(404).json({ error: 'Progetto non trovato' });
-  if (!fs.existsSync(project.path)) return res.status(404).json({ error: 'Directory non trovata' });
 
-  // Lancia cmd e cattura il PID via PowerShell -PassThru
+  // Verifica esistenza dir Linux via UNC
+  const unc = linuxPathToUnc(project.path);
+  if (!fs.existsSync(unc)) return res.status(404).json({ error: 'Directory non trovata (UNC: ' + unc + ')' });
+
+  const cfg = loadWslConfig();
+  const distro = cfg.wslDistro;
+  const linuxPath = project.path.replace(/'/g, "''");
+  const safeName = project.name.replace(/[^a-zA-Z0-9_.-]/g, '_');
+
+  // Apre Windows Terminal con tab WSL nella dir progetto e lancia claude.
+  // Args via stringa singola (evita Start-Process auto-quoting bug con title contenente spazi).
+  // --suppressApplicationTitle blocca claude dal sovrascrivere il tab title.
+  const wtArgs = `new-tab --suppressApplicationTitle --title \\"claude-${safeName}\\" wsl.exe -d ${distro} --cd \\"${linuxPath}\\" -- bash -lc claude`;
   const psScript = `
-$p = Start-Process cmd.exe -ArgumentList '/K','title claude - ${project.name.replace(/'/g, "''")} & cd /d "${project.path.replace(/\\/g, '\\\\')}" & claude' -PassThru
+$p = Start-Process wt.exe -ArgumentList '${wtArgs}' -PassThru
 Write-Output $p.Id
 `;
   runPsFile(psScript, 8000, (error, stdout) => {
@@ -304,14 +348,8 @@ Write-Output $p.Id
 // ── Leggi slug dalla sessione più recente del progetto ───────
 function readProjectSlug(projectPath) {
   try {
-    const claudeDirName = projectPath
-      .replace(/:\\/g, '--').replace(/\\/g, '-')
-      .replace(/\//g, '-').replace(/\s+/g, '-').replace(/^-/, '')
-      .replace(/[^\x00-\x7F]/g, c => '-'.repeat(Buffer.byteLength(c, 'utf8')));
-    const claudeDir = path.join(
-      process.env.USERPROFILE || process.env.HOME,
-      '.claude', 'projects', claudeDirName
-    );
+    const claudeDirName = linuxPathToClaudeDirName(projectPath);
+    const claudeDir = path.join(getClaudeProjectsDirUnc(), claudeDirName);
     if (!fs.existsSync(claudeDir)) return null;
     const files = fs.readdirSync(claudeDir).filter(f => f.endsWith('.jsonl'));
     if (!files.length) return null;
@@ -347,12 +385,13 @@ app.get('/api/projects/:projectName/terminal-windows', (req, res) => {
 
   const savedPid = loadTerminalPids()[project.name] || 0;
 
+  const claudeHomeUnc = `\\\\wsl.localhost\\${loadWslConfig().wslDistro}\\home\\${loadWslConfig().wslUser}\\.claude`;
   const psScript = `
-$projectPath      = '${project.path.replace(/\\/g, '/')}'
+$projectPath      = '${project.path.replace(/'/g, "''")}'
 $projectName      = '${project.name.replace(/'/g, "''")}'
 $savedPid         = ${savedPid}
-$sessionsDir      = [System.IO.Path]::Combine($env:USERPROFILE, '.claude', 'sessions')
-$claudeProjectsBase = [System.IO.Path]::Combine($env:USERPROFILE, '.claude', 'projects')
+$sessionsDir      = '${claudeHomeUnc}\\sessions'
+$claudeProjectsBase = '${claudeHomeUnc}\\projects'
 
 $results = @()
 
@@ -941,6 +980,61 @@ app.post('/api/hook-event', async (req, res) => {
   } catch (err) {
     console.error('[hook-event] error:', err.message);
     res.status(500).json({ error: 'internal error' });
+  }
+});
+
+// ── REST: Debug Path Encoding ────────────────────────
+app.get('/api/debug/path-encoding', (req, res) => {
+  const linux = (req.query.linux || '').toString().trim();
+  if (!linux) return res.status(400).json({ error: 'missing query param: linux' });
+  if (!linux.startsWith('/')) return res.status(400).json({ error: 'linux path must start with /' });
+
+  try {
+    const cfg = loadWslConfig();
+    const computed = linuxPathToClaudeDirName(linux);
+    const claudeProjectsUnc = getClaudeProjectsDirUnc();
+    const expectedUnc = path.join(claudeProjectsUnc, computed);
+
+    let exists = false;
+    let actual = null;
+    let sessionFiles = 0;
+    let suggestions = [];
+
+    if (fs.existsSync(expectedUnc)) {
+      exists = true;
+      actual = computed;
+      try {
+        sessionFiles = fs.readdirSync(expectedUnc).filter(f => f.endsWith('.jsonl')).length;
+      } catch {}
+    } else {
+      // Cerca candidati simili (basename match)
+      const basename = linux.split('/').filter(Boolean).pop() || '';
+      const safeBase = basename.replace(/[_.\s]/g, '-');
+      try {
+        const allDirs = fs.readdirSync(claudeProjectsUnc, { withFileTypes: true })
+          .filter(d => d.isDirectory())
+          .map(d => d.name);
+        suggestions = allDirs
+          .filter(d => d.toLowerCase().includes(safeBase.toLowerCase()))
+          .slice(0, 5);
+      } catch {}
+    }
+
+    res.json({
+      input: linux,
+      computed,
+      expectedUnc,
+      claudeProjectsUnc,
+      wslDistro: cfg.wslDistro,
+      wslUser: cfg.wslUser,
+      exists,
+      actual,
+      sessionFiles,
+      suggestions
+    });
+  } catch (err) {
+    console.error('[debug/path-encoding] error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

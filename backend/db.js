@@ -76,6 +76,13 @@ export function sessionIdFromPath(filePath) {
   return crypto.createHash('sha1').update(filePath).digest('hex');
 }
 
+// Lookup updated_at (ms) for a session by file path. Null if absent.
+export function getSessionUpdatedAt(filePath) {
+  const id = sessionIdFromPath(filePath);
+  const row = getDb().prepare('SELECT updated_at FROM sessions WHERE id = ?').get(id);
+  return row ? row.updated_at : null;
+}
+
 // Upsert session row. Overwrites all fields.
 export function upsertSession(session) {
   const db = getDb();

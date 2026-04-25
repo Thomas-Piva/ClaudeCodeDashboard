@@ -137,112 +137,135 @@ export default function Guida() {
       <div style={S.wrap}>
 
         <div style={{ marginBottom: 40 }}>
-          <div style={S.h1}>Guida installazione</div>
+          <div style={S.h1}>Guida installazione (WSL hybrid)</div>
           <div style={S.subtitle}>
-            Dashboard Claude Code + Wiki EGM condivisa —
-            segui i passi nell'ordine, ci vogliono circa 10 minuti.
+            Backend Node + Frontend Vite girano su Windows host.
+            Claude Code gira dentro WSL Ubuntu. Dashboard monitora le sessioni WSL via UNC <code>\\wsl.localhost\</code>.
           </div>
         </div>
 
         <Section num="1" title="Prerequisiti" defaultOpen={true}>
-          <p style={S.p}>Verifica di avere Node.js 18 o superiore:</p>
+          <p style={S.p}>Su Windows: Node.js 18+ installato.</p>
           <Pre>node -v</Pre>
-          <p style={S.p}>Se il comando non funziona o la versione è inferiore a 18, scarica Node.js da <strong>nodejs.org</strong>.</p>
+          <p style={S.p}>WSL2 con Ubuntu-24.04 (o altra distro — aggiorna <code>backend/config.json</code>).</p>
+          <Pre>{`wsl --version
+wsl --list --verbose`}</Pre>
+          <p style={S.p}>Claude Code installato dentro WSL (non su Windows). Verifica:</p>
+          <Pre>{`wsl -d Ubuntu-24.04 -- which claude`}</Pre>
         </Section>
 
-        <Section num="2" title="Installazione dashboard">
-          <Pre>{`git clone https://github.com/Attilio81/ClaudeCodeDashboard.git
-cd ClaudeCodeDashboard
+        <Section num="2" title="WSL2 mirrored networking">
+          <p style={S.p}>
+            Mirrored networking permette al hook bash dentro WSL di pingare il backend Windows su <strong>localhost:3001</strong>.
+            Crea/modifica <code>%USERPROFILE%\.wslconfig</code>:
+          </p>
+          <Pre>{`[wsl2]
+networkingMode=mirrored
+firewall=true`}</Pre>
+          <p style={S.p}>Riavvia WSL per applicare:</p>
+          <Pre>wsl --shutdown</Pre>
+          <div style={S.note}>
+            Mirrored networking richiede Windows 11 22H2+. Se rompe VPN o Docker → torna a NAT e usa il gateway IP nel hook.
+          </div>
+        </Section>
+
+        <Section num="3" title="Firewall Windows: porta 3001 inbound">
+          <p style={S.p}>PowerShell come <strong>Amministratore</strong>:</p>
+          <Pre>{`New-NetFirewallRule -DisplayName "ClaudeCodeDashboard" \\
+  -Direction Inbound -Protocol TCP -LocalPort 3001 -Action Allow`}</Pre>
+        </Section>
+
+        <Section num="4" title="Clone + install dashboard (Windows)">
+          <Pre>{`cd C:\\
+git clone https://github.com/Thomas-Piva/ClaudeCodeDashboard.git
+cd C:\\ClaudeCodeDashboard
 
 npm install
 cd backend && npm install
-cd ../frontend && npm install && cd ..`}</Pre>
-          <p style={S.p}>Avvia con:</p>
+cd ..\\frontend && npm install && cd ..`}</Pre>
+          <p style={S.p}>Avvio:</p>
           <Pre>npm run dev</Pre>
-          <p style={S.p}>Apri <strong>http://localhost:5173</strong> — vedrai subito le tue sessioni Claude Code attive.</p>
+          <p style={S.p}>Apri <strong>http://localhost:5173</strong>.</p>
         </Section>
 
-        <Section num="3" title="Configura le cartelle di lavoro">
+        <Section num="5" title="Configura cartelle scansionate">
           <p style={S.p}>
-            Apri <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem', color: 'var(--text-primary)' }}>backend/scan-paths.json</code> e
-            inserisci le cartelle radice dei tuoi progetti:
+            <code>backend/scan-paths.json</code> contiene path <strong>Linux</strong> (visti dalla prospettiva di WSL):
           </p>
-          <Pre>{`["C:\\\\BIZ2017", "C:\\\\ProgettiEgm", "C:\\\\BUSEXP"]`}</Pre>
+          <Pre>{`["/home/thomas"]`}</Pre>
+          <p style={S.p}>
+            Il backend converte internamente in UNC per leggere il filesystem WSL.
+            Aggiungi/rimuovi anche dal pannello <strong>⚙ ADMIN</strong>.
+          </p>
           <div style={S.note}>
-            Inserisci solo le cartelle radice — la dashboard scansiona automaticamente le sottocartelle.
+            Esclusioni utili in <code>backend/excluded-paths.json</code>: <code>/home/thomas/.claude</code>, <code>/home/thomas/obsidian_second_brain</code>.
           </div>
-          <p style={S.p}>Oppure aggiungile direttamente dalla dashboard: pulsante <strong>⚙ ADMIN</strong> in alto a destra.</p>
         </Section>
 
-        <Section num="4" title="Notifiche Telegram (opzionale)">
-          <p style={S.p}>Chiedi ad Attilio le credenziali Telegram, poi crea il file:</p>
-          <Pre>{`cp backend/.env.example backend/.env`}</Pre>
-          <p style={S.p}>Apri <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: '0.8rem' }}>backend/.env</code> e compila:</p>
-          <Pre>{`TELEGRAM_TOKEN=<token>
-TELEGRAM_CHAT_ID=<chat-id>
-DEEPSEEK_API_KEY=<chiave>`}</Pre>
-        </Section>
-
-        <Section num="5" title="Hook Claude Code — stato in tempo reale">
-          <p style={S.p}>Gli hook aggiornano la dashboard mentre lavori e inviano le notifiche Telegram.</p>
-          <span style={S.label}>Crea lo script hook:</span>
+        <Section num="6" title="Hook Claude Code (dentro WSL)">
+          <p style={S.p}>I hook girano in WSL e POST a <strong>http://localhost:3001/api/hook-event</strong> (mirrored networking).</p>
+          <span style={S.label}>Crea lo script hook in WSL:</span>
           <Pre>{`mkdir -p ~/.claude/hooks
 
 cat > ~/.claude/hooks/hook-event.sh << 'EOF'
 #!/bin/bash
 INPUT=$(cat)
-curl -s -X POST "http://localhost:3001/api/hook-event" \\
+# Mirrored networking: localhost punta a Windows host
+URL="http://localhost:3001/api/hook-event"
+# Fallback: gateway IP se mirrored non disponibile
+if ! curl -s --max-time 1 -o /dev/null -w "%{http_code}" "$URL" | grep -q "^[23]"; then
+  GATEWAY=$(ip route show default | awk '/default/ {print $3; exit}')
+  URL="http://$GATEWAY:3001/api/hook-event"
+fi
+curl -s -X POST "$URL" \\
   -H "Content-Type: application/json" \\
   -d "$INPUT" > /dev/null 2>&1 || true
 EOF
 
 chmod +x ~/.claude/hooks/hook-event.sh`}</Pre>
-          <span style={S.label}>Aggiungi in ~/.claude/settings.json (sezione hooks, sostituisci &lt;tuousername&gt;):</span>
-          <Pre>{`"Stop":        [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<tuousername>/.claude/hooks/hook-event.sh" }] }],
-"PreToolUse":  [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<tuousername>/.claude/hooks/hook-event.sh" }] }],
-"PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<tuousername>/.claude/hooks/hook-event.sh" }] }],
-"Notification":[{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<tuousername>/.claude/hooks/hook-event.sh" }] }]`}</Pre>
-          <div style={S.note}>
-            Il nome utente Windows è del tipo <strong>mario.rossi.EGMSISTEMI</strong> — puoi verificarlo con <code style={{ fontFamily: 'JetBrains Mono, monospace' }}>whoami</code> nel terminale.
-          </div>
+          <span style={S.label}>Aggiungi in ~/.claude/settings.json (sezione hooks):</span>
+          <Pre>{`"hooks": {
+  "Stop":         [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/hook-event.sh" }] }],
+  "PreToolUse":   [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/hook-event.sh" }] }],
+  "PostToolUse":  [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/hook-event.sh" }] }],
+  "Notification": [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/hook-event.sh" }] }]
+}`}</Pre>
         </Section>
 
-        <Section num="6" title="Installa il comando /aggiornawiki">
-          <p style={S.p}>
-            Questo comando ti permette di scrivere nella wiki condivisa direttamente da qualsiasi sessione Claude Code,
-            senza uscire da quello che stai facendo.
-          </p>
-          <Pre>{`mkdir -p ~/.claude/commands
-
-# Scarica il comando dal repo
-curl -s https://raw.githubusercontent.com/Attilio81/ClaudeCodeDashboard/main/GUIDA-COLLEGHI.md > /dev/null
-
-# Oppure copia manualmente il file:
-# C:\\Progetti Pilota\\DashboardClaudeCode\\GUIDA-COLLEGHI.md
-# contiene il testo da incollare in ~/.claude/commands/aggiornawiki.md`}</Pre>
-          <div style={S.tip}>
-            Non serve riavviare Claude Code — il comando è disponibile immediatamente dopo aver creato il file.
-          </div>
-          <p style={S.p}>Come si usa:</p>
-          <div style={S.example}>{`/aggiornawiki la logica di calcolo dello sconto in BNEG0112:
-se il cliente ha pagato entro 30gg applica 2%, la funzione
-è nella Sub CalcolaSconto() riga 145`}</div>
-          <p style={S.p}>
-            Claude scrive automaticamente nella wiki condivisa con la data e il tuo nome utente.
-            Il file viene creato se non esiste.
-          </p>
+        <Section num="7" title="Configura wiki path (vault Obsidian)">
+          <p style={S.p}>I 5 slash command (/analizzacodebase, /aggiornawiki, ecc.) leggono il path del vault da:</p>
+          <Pre>{`cat > ~/.claude/wiki-config.json << 'EOF'
+{
+  "wikiPath": "/home/thomas/obsidian_second_brain/second_brain/ClaudeWiki"
+}
+EOF`}</Pre>
+          <p style={S.p}>Struttura vault (schema Karpathy):</p>
+          <Pre>{`ClaudeWiki/
+├── index.md         (MOC globale)
+├── log.md           (timeline append-only di tutti i comandi)
+├── global/
+│   └── io.md        (contesto personale)
+└── progetti/
+    └── <nome>/
+        ├── Architettura/
+        ├── Sessioni/
+        ├── Manuali/
+        ├── Rilasci/
+        └── Graphify/   (opzionale, da tool esterno)`}</Pre>
         </Section>
 
-        <Section num="7" title="Apri la wiki in Obsidian">
-          <p style={S.p}>La wiki condivisa è già popolata con la documentazione esistente.</p>
-          <Pre>{`\\\\egmsql\\EGMStruttura\\Wiki-Egm`}</Pre>
-          <p style={S.p}>
-            In Obsidian: <strong>Apri cartella come vault</strong> → seleziona il percorso sopra.
-          </p>
+        <Section num="8" title="Verifica end-to-end">
+          <p style={S.p}>1. Health backend:</p>
+          <Pre>curl http://localhost:3001/api/health</Pre>
+          <p style={S.p}>2. Hook ping da WSL:</p>
+          <Pre>{`echo '{"hook_event_name":"Stop","cwd":"/home/thomas/Costruzione_Memory"}' \\
+  | bash ~/.claude/hooks/hook-event.sh`}</Pre>
+          <p style={S.p}>3. Debug encoding (anche da AdminPanel):</p>
+          <Pre>{`curl "http://localhost:3001/api/debug/path-encoding?linux=/home/thomas/Costruzione_Memory"`}</Pre>
           <div style={S.tip}>
-            La cartella è su rete — ogni collega che usa /aggiornawiki scrive nello stesso vault.
-            La documentazione cresce dal lavoro di tutti.
+            Atteso: <code>{`{ exists: true, computed: "-home-thomas-Costruzione-Memory", sessionFiles: N }`}</code>
           </div>
+          <p style={S.p}>4. Avvia <code>claude</code> in WSL su un progetto, refresh dashboard → card appare con stato "Attivo".</p>
         </Section>
 
         <div style={{
@@ -254,7 +277,8 @@ se il cliente ha pagato entro 30gg applica 2%, la funzione
           lineHeight: 1.7,
         }}>
           <span style={{ color: 'var(--text-bright)', fontWeight: 700 }}>Problemi?</span>
-          {' '}Contatta <strong>Attilio Pregnolato</strong> oppure scrivi nel canale Teams.
+          {' '}Verifica WSL distro/user in <code>backend/config.json</code>, controlla firewall 3001,
+          riavvia WSL con <code>wsl --shutdown</code>.
         </div>
 
       </div>

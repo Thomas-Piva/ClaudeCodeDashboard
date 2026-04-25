@@ -1,12 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import os from 'os';
 import { fileURLToPath } from 'url';
+import { linuxPathToClaudeDirName, linuxPathToUnc, getClaudeProjectsDirUnc } from './wsl-utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const CLAUDE_PROJECTS_DIR = path.join(os.homedir(), '.claude', 'projects');
 const SCAN_PATHS_FILE = path.join(__dirname, 'scan-paths.json');
 
 export function loadScanPaths() {
@@ -23,61 +22,44 @@ export function saveScanPaths(paths) {
 }
 
 /**
- * Converti path progetto nel nome directory Claude
- * Es: C:\BIZ2017\BNEGS076 → C--BIZ2017-BNEGS076
- */
-function pathToClaudeDirName(projectPath) {
-  const base = projectPath
-    .replace(/:\\/g, '--')
-    .replace(/\\/g, '-')
-    .replace(/\//g, '-')
-    .replace(/\./g, '-')
-    .replace(/\s+/g, '-')
-    .replace(/^-/, '');
-  // Claude Code sostituisce ogni byte non-ASCII con '-'
-  // (es. 'à' = 2 byte UTF-8 → '--')
-  return base.replace(/[^\x00-\x7F]/g, c => '-'.repeat(Buffer.byteLength(c, 'utf8')));
-}
-
-/**
- * Scansiona le cartelle radice configurate e trova le sottocartelle
+ * Scansiona percorsi radice Linux (in WSL) via UNC e trova sottocartelle
  * con sessioni Claude Code attive.
- * @param {string[]} rootPaths - Percorsi radice da scansionare
- * @param {string[]} excludedPaths - Percorsi da escludere
+ *
+ * @param {string[]} rootPaths - Path Linux (es. "/home/thomas")
+ * @param {string[]} excludedPaths - Path Linux da escludere
  * @returns {Array<{name, path, claudeDir, sessionCount}>}
  */
 export function discoverFromRoots(rootPaths, excludedPaths = [], maxDepth = 2) {
   const projects = [];
   const seenPaths = new Set();
-  const seenNames = new Map(); // name → count, per gestire duplicati
+  const seenNames = new Map();
 
-  if (!fs.existsSync(CLAUDE_PROJECTS_DIR)) {
-    console.log('⚠️  Directory sessioni Claude non trovata:', CLAUDE_PROJECTS_DIR);
+  const claudeProjectsUnc = getClaudeProjectsDirUnc();
+  if (!fs.existsSync(claudeProjectsUnc)) {
+    console.log('⚠️  Directory sessioni Claude WSL non trovata:', claudeProjectsUnc);
     return projects;
   }
 
-  console.log('🗂️  Scansione percorsi radice...');
+  console.log('🗂️  Scansione percorsi radice WSL...');
 
-  function scanDir(dirPath, depth) {
+  function scanDir(linuxDir, depth) {
+    const uncDir = linuxPathToUnc(linuxDir);
     let entries;
     try {
-      entries = fs.readdirSync(dirPath, { withFileTypes: true })
+      entries = fs.readdirSync(uncDir, { withFileTypes: true })
         .filter(d => d.isDirectory());
     } catch {
       return;
     }
 
     for (const entry of entries) {
-      const fullPath = path.join(dirPath, entry.name);
+      const linuxFull = `${linuxDir}/${entry.name}`.replace(/\/+/g, '/');
 
-      // Salta percorsi esclusi
-      if (excludedPaths.some(ep => ep.toLowerCase() === fullPath.toLowerCase())) continue;
-      // Salta già visti
-      if (seenPaths.has(fullPath.toLowerCase())) continue;
+      if (excludedPaths.some(ep => ep === linuxFull)) continue;
+      if (seenPaths.has(linuxFull)) continue;
 
-      // Controlla se esiste una sessione Claude per questo percorso
-      const claudeDirName = pathToClaudeDirName(fullPath);
-      const claudeProjectDir = path.join(CLAUDE_PROJECTS_DIR, claudeDirName);
+      const claudeDirName = linuxPathToClaudeDirName(linuxFull);
+      const claudeProjectDir = path.join(claudeProjectsUnc, claudeDirName);
 
       if (fs.existsSync(claudeProjectDir)) {
         let sessionFiles;
@@ -88,35 +70,35 @@ export function discoverFromRoots(rootPaths, excludedPaths = [], maxDepth = 2) {
         }
 
         if (sessionFiles.length > 0) {
-          seenPaths.add(fullPath.toLowerCase());
+          seenPaths.add(linuxFull);
 
-          // Calcola nome univoco: se il nome è già usato, aggiungi il parent
           let name = entry.name;
           if (seenNames.has(name.toLowerCase())) {
-            name = `${path.basename(dirPath)}-${entry.name}`;
+            const parentName = linuxDir.split('/').pop() || 'root';
+            name = `${parentName}-${entry.name}`;
           }
           seenNames.set(name.toLowerCase(), true);
 
           projects.push({
             name,
-            path: fullPath,
+            path: linuxFull,
             claudeDir: claudeDirName,
             sessionCount: sessionFiles.length
           });
-          continue; // non scende ulteriormente se ha già una sessione
+          continue;
         }
       }
 
-      // Scendi nella sottocartella se non abbiamo raggiunto la profondità massima
       if (depth < maxDepth) {
-        scanDir(fullPath, depth + 1);
+        scanDir(linuxFull, depth + 1);
       }
     }
   }
 
   for (const rootPath of rootPaths) {
-    if (!fs.existsSync(rootPath)) {
-      console.log(`  ⚠️  Percorso non trovato: ${rootPath}`);
+    const uncRoot = linuxPathToUnc(rootPath);
+    if (!fs.existsSync(uncRoot)) {
+      console.log(`  ⚠️  Percorso non trovato: ${rootPath} (${uncRoot})`);
       continue;
     }
     const before = projects.length;
@@ -129,11 +111,11 @@ export function discoverFromRoots(rootPaths, excludedPaths = [], maxDepth = 2) {
 }
 
 /**
- * Controlla se un singolo path ha sessioni Claude attive
+ * Controlla se un singolo path Linux ha sessioni Claude attive.
  */
-export function hasClaudeSession(projectPath) {
-  const claudeDirName = pathToClaudeDirName(projectPath);
-  const claudeProjectDir = path.join(CLAUDE_PROJECTS_DIR, claudeDirName);
+export function hasClaudeSession(linuxProjectPath) {
+  const claudeDirName = linuxPathToClaudeDirName(linuxProjectPath);
+  const claudeProjectDir = path.join(getClaudeProjectsDirUnc(), claudeDirName);
   if (!fs.existsSync(claudeProjectDir)) return false;
   try {
     return fs.readdirSync(claudeProjectDir).some(f => f.endsWith('.jsonl'));

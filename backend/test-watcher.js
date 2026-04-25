@@ -1,10 +1,10 @@
 import { ClaudeSessionWatcher } from './claude-watcher.js';
 
-// Test con il progetto corrente
+// Test con un progetto WSL Linux
 const testProjects = [
   {
-    name: "DashboardClaudeCode",
-    path: "C:\\Progetti Pilota\\DashboardClaudeCode"
+    name: "Costruzione_Memory",
+    path: "/home/thomas/Costruzione_Memory"
   }
 ];
 
@@ -13,7 +13,7 @@ function onUpdate(data) {
   console.log(JSON.stringify(data, null, 2));
 }
 
-console.log('🧪 Test ClaudeSessionWatcher\n');
+console.log('🧪 Test ClaudeSessionWatcher (WSL hybrid)\n');
 
 const watcher = new ClaudeSessionWatcher(testProjects, onUpdate);
 watcher.start();

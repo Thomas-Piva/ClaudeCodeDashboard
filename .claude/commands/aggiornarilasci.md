@@ -1,117 +1,106 @@
-Devi creare una nota di rilascio nella wiki Obsidian del progetto corrente.
+Devi creare una nota di rilascio nella wiki Obsidian (schema Karpathy).
 
 ## Quando usarlo
-- Prima o dopo un deploy: include DLL, modifiche DB, istruzioni installazione
-- NON usare per: log di sessione → usa /aggiornawiki
-- NON usare per: documentazione utente → usa /aggiornamanuale
+- Prima o dopo un deploy: include artefatti, modifiche DB, istruzioni installazione
+- NON usare per: log di sessione → usa `/aggiornawiki`
+- NON usare per: documentazione utente → usa `/aggiornamanuale`
 
 ---
 
 **Passaggio 1 — Recupera il percorso wiki**
 
-Leggi il file:
-`C:\Users\attilio.pregnolato.EGMSISTEMI\.claude\wiki-config.json`
-
-Estrai il campo `wikiPath`.
+Leggi `~/.claude/wiki-config.json` ed estrai `wikiPath`.
 
 **Passaggio 2 — Determina file e versione**
 
-Dal cwd corrente (esegui `pwd` se non lo conosci), calcola:
-- Normalizza il path: `/c/BIZ2017/BNEG0112` → `C:\BIZ2017\BNEG0112`
-- `cartella` = penultimo componente (es. `BIZ2017`)
-- `modulo` = ultimo componente lowercase (es. `bneg0112`)
+Dal cwd:
+- `nome` = basename del cwd
+- `relDir` = `{wikiPath}/progetti/{nome}/Rilasci`
+- `versione` = argomento del comando (es. `/aggiornarilasci 1.3.0`). Se non specificata, chiedi: *"Numero di versione del rilascio?"*
+- File: `{relDir}/v{versione}.md`
 
-La versione viene dall'argomento del comando (es. `/aggiornarilasci 1.3.0`).
-Se non specificata, chiedi: *"Qual è il numero di versione di questo rilascio?"*
+Crea dir se manca: `mkdir -p "{relDir}"`.
 
-Percorso completo: `{wikiPath}\Rilasci\{cartella}\{modulo}-v{versione}.md`
+**Passaggio 3 — Raccogli informazioni**
 
-**Passaggio 3 — Template di riferimento**
-
-Leggi la struttura dal template:
-`C:\Progetti Pilota\DashboardClaudeCode\Modelli\template_note_rilascio.md`
-
-Il file da creare segue esattamente quella struttura:
-- DLL Necessarie (con percorso e note)
-- Modifiche a Tabelle (campo per campo)
-- Funzionamento (procedura step-by-step + risultato atteso)
-- Note Aggiuntive
-
-**Passaggio 4 — Raccogli informazioni**
-
-Se l'utente ha già fornito dettagli nel messaggio del comando, usali.
-Altrimenti chiedi:
-1. *"Quali DLL vanno aggiornate? (nome, percorso, note)"*
-2. *"Ci sono modifiche a tabelle del database?"*
-3. *"Descrivi il funzionamento della nuova versione."*
+Se l'utente ha fornito dettagli nel messaggio, usali. Altrimenti chiedi:
+1. *"Quali artefatti vanno deployati? (binari, DLL, container, immagini Docker — nome, percorso, note)"*
+2. *"Modifiche a tabelle/schema database?"*
+3. *"Funzionamento della nuova versione?"*
 4. *"Note aggiuntive o dipendenze da altri rilasci?"*
 
-Ricava data: `date +%Y-%m-%d`
+Ricava data e utente:
+```bash
+date +%Y-%m-%d
+whoami
+```
 
-**Passaggio 5 — Crea il file**
+**Passaggio 4 — Crea il file**
 
-Il file è sempre nuovo (una versione = un file). Non modificare file esistenti per la stessa versione — se esiste già, avvisa l'utente.
+Una versione = un file. Se esiste già, avvisa l'utente: *"File `v{versione}.md` esiste già. Sovrascrivere?"*.
 
 Struttura:
 ```markdown
-# Note Rilascio - v{versione}
+---
+project: {nome}
+version: {versione}
+date: {YYYY-MM-DD}
+author: {utente}
+---
 
-**Progetto:** {modulo}
-**Data:** {data}
+# Note Rilascio — v{versione}
+
+**Progetto:** {nome}
+**Data:** {YYYY-MM-DD}
 **Autore:** {utente}
 
-## DLL Necessarie
-...
+## Artefatti
 
-## Modifiche a Tabelle
-...
+| Nome | Percorso | Note |
+|------|----------|------|
+| `{artefatto}` | `{path}` | {note} |
+
+## Modifiche Database
+
+| Tabella | Campo | Tipo | Nullable | Note |
+|---------|-------|------|----------|------|
+| `{tabella}` | `{campo}` | `{tipo}` | sì/no | {note} |
+
+(omettere sezione se nessuna modifica DB)
 
 ## Funzionamento
-...
+
+{Descrizione step-by-step + risultato atteso}
 
 ## Note Aggiuntive
-...
+
+{Dipendenze altri rilasci, breaking changes, rollback}
 ```
 
-**Passaggio 6 — Aggiungi wikilinks cross-area**
+**Passaggio 5 — Wikilink cross-area**
 
-Se il testo descrive modifiche a tabelle DB e esiste `{wikiPath}\Architettura\{cartella}\database.md`, aggiungi:
-```
-→ Schema DB: [[Architettura/{cartella}/database]]
-```
+- Se esiste `{wikiPath}/progetti/{nome}/Architettura/database.md` e ci sono modifiche DB:
+  ```
+  → Schema DB: [[progetti/{nome}/Architettura/database]]
+  ```
+- Se esiste qualche file in `{wikiPath}/progetti/{nome}/Manuali/`:
+  ```
+  → Manuale: [[progetti/{nome}/Manuali]]
+  ```
 
-Se esiste `{wikiPath}\Manuali\{cartella}\{modulo}.md`, aggiungi:
-```
-→ Manuale utente: [[Manuali/{cartella}/{modulo}]]
-```
+**Passaggio 6 — Append a `log.md` root**
 
-**Passaggio 7 — Aggiorna index radice**
-
-Leggi `{wikiPath}\index.md`.
-
-**Se non esiste**, crealo:
 ```markdown
----
-last_updated: {YYYY-MM-DD}
----
-
-# Wiki EGM — Index
-
-## {cartella}
-
-| Modulo | Architettura | Sessioni | Manuali | Rilasci |
-|--------|-------------|---------|---------|---------|
-| {modulo} | — | — | — | [[Rilasci/{cartella}/{modulo}-v{versione}\|v{versione}]] |
+## [{YYYY-MM-DD}] /aggiornarilasci | {nome} | v{versione}
 ```
 
-**Se esiste**:
-1. Cerca `## {cartella}` — se manca, aggiungila con tabella
-2. Cerca riga `{modulo}` nella tabella — se manca, aggiungila con `—` in tutte le colonne
-3. Aggiorna colonna **Rilasci**: sostituisci il valore con `[[Rilasci/{cartella}/{modulo}-v{versione}|v{versione}]]` (sempre aggiorna — riflette l'ultima versione)
-4. Aggiorna `last_updated: {YYYY-MM-DD}`
+**Passaggio 7 — Aggiorna `index.md` root**
+
+Aggiorna riga `{nome}` colonna **Rilasci**: `[[progetti/{nome}/Rilasci/v{versione}\|v{versione}]]` (link all'ultima versione, sempre aggiorna).
+Aggiorna `last_updated`.
 
 **Regole:**
-- Audience: IT / sviluppatori che installano — non utenti finali
-- Sii preciso su percorsi DLL (formato Windows assoluto)
-- Per modifiche tabelle: specifica tipo dato e se nullable
-- Conferma all'utente il percorso del file creato
+- Audience: IT/sviluppatori che installano — non utenti finali
+- Sii preciso su percorsi/path (assoluti)
+- Modifiche tabelle: tipo dato + nullable
+- Conferma all'utente: path file creato

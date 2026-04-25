@@ -13,7 +13,9 @@
 
 *Monitora N sessioni Claude Code parallele, cerca nei messaggi passati, analizza i pattern di utilizzo, ricevi notifiche push su Telegram, e genera una knowledge base Markdown strutturata dal tuo codebase quando vuoi tu.*
 
-[Avvio Rapido](#-avvio-rapido) • [Funzionalità](#-funzionalità) • [Knowledge Base](#-knowledge-base) • [Come Funziona](#-come-funziona) • [Configurazione](#-configurazione) • [API](#-api-reference) • [Troubleshooting](#-troubleshooting)
+[Avvio Rapido](#avvio-rapido) • [Workflow giornaliero](WORKFLOW.md) • [Knowledge Base](#knowledge-base-schema-karpathy) • [Graphify](#graphify-integrato-via-slash-command) • [Configurazione](#configurazione) • [Troubleshooting](#troubleshooting)
+
+> 📖 **Quick reference uso quotidiano**: vedi [`WORKFLOW.md`](WORKFLOW.md) per setup, comandi slash, pattern d'uso e troubleshooting rapidi.
 
 </div>
 
@@ -54,7 +56,7 @@ Il bot **ClaudeOps** invia notifiche push direttamente su Telegram:
 |--------|-------------|
 | **Sessioni** | Toggle ▶ per vedere le ultime 5 sessioni indicizzate del progetto |
 | **Escludi ⊗** | Rimuove il progetto dal monitoraggio |
-| **Apri CMD** | Apre cmd.exe nella directory del progetto |
+| **Apri terminale** | Apre Windows Terminal con tab WSL nella dir progetto e lancia `claude` |
 | **Trova finestra** | Individua la tab di Windows Terminal della sessione tramite UIAutomation |
 | **Porta in primo piano ⬆** | Porta Windows Terminal in primo piano e seleziona la tab corretta |
 | **Segna controllato** | Marca un progetto "Da Controllare" come rivisto |
@@ -68,71 +70,74 @@ Pannello accessibile con **⚙ ADMIN** nell'header:
 
 ---
 
-## Knowledge Base
+## Knowledge Base (schema Karpathy)
 
-La dashboard si integra con un sistema di documentazione tecnica basato su **5 slash command Claude Code** che scrivono direttamente in un vault Obsidian condiviso — senza LLM esterni, senza backend, senza API key aggiuntive.
+Vault Obsidian + **7 slash command Claude Code** che scrivono direttamente nel vault — 5 narrativi LLM-generated + 2 graphify (CLI deterministica AST).
 
-### Il Problema
+### Filosofia divisione AI / umano
 
-Col tempo si accumulano centinaia di sessioni che contengono decisioni architetturali, bug fix, pattern ricorrenti e documentazione implicita — tutto disperso e non ricercabile fuori dalla dashboard.
+- **Graphify/** → consumo primario AI (Claude). `graph.json` queryable + `GRAPH_REPORT.md` god nodes. 71x meno token vs grep raw files.
+- **Architettura/** → narrativa LLM-generated. Leggibile sia da Claude che da umano.
+- **Sessioni/Manuali/Rilasci/** → consumo primario umano. Cronologia decisioni + procedure + note deploy.
 
-### La Soluzione
+### 7 comandi slash
 
-5 comandi slash, ognuno con uno scopo preciso:
+| Comando | Quando | Area vault |
+|---------|--------|-----------|
+| `/analizzacodebase` | Prima volta su progetto / refactor grosso | `progetti/<nome>/Architettura/{file}.md` + `_overview.md` |
+| `/aggiornacodebase` | Modifiche puntuali al codice | idem (incrementale via `depends_on`) |
+| `/aggiornawiki <nota>` | Dopo ogni sessione significativa | `progetti/<nome>/Sessioni/<YYYY-MM-DD>.md` |
+| `/aggiornamanuale <area>` | Quando cambia come si usa il software | `progetti/<nome>/Manuali/<area>.md` |
+| `/aggiornarilasci <versione>` | Prima o dopo un deploy | `progetti/<nome>/Rilasci/v<X>.md` |
+| `/graphify` | Prima volta graphify su progetto | `progetti/<nome>/Graphify/` (graph.json + html + GRAPH_REPORT.md) |
+| `/aggiornagraphify` | Codice modificato | idem (incrementale, AST-only, no LLM) |
 
-| Comando | Quando usarlo | Area wiki |
-|---------|--------------|-----------|
-| `/analizzacodebase` | Prima analisi di un progetto / dopo refactor grosso | `Architettura/` |
-| `/aggiornacodebase` | Dopo modifiche puntuali al codice | `Architettura/` |
-| `/aggiornawiki <nota>` | Dopo ogni sessione significativa (bug fix, feature, decisione) | `Sessioni/` |
-| `/aggiornamanuale <nota>` | Quando cambia come si usa il software | `Manuali/` |
-| `/aggiornarilasci <versione>` | Prima o dopo un deploy | `Rilasci/` |
+Tutti appendono entry a `log.md` root e aggiornano `index.md` MOC con tabella per progetto.
 
-Claude scrive direttamente nella wiki usando i suoi tool — nessuna chiamata a provider LLM esterni.
-
-### Struttura Vault
+### Struttura vault Karpathy
 
 ```
-Wiki-Egm/
-├── index.md                ← MOC aggiornato automaticamente da tutti i comandi
-├── Sessioni/               ← /aggiornawiki       (cosa è successo)
-│   ├── BIZ2017/
-│   │   └── bneg0112.md
-│   └── ProgettiEgm/
-│       └── controllopadordini.md
-│
-├── Architettura/           ← /analizzacodebase, /aggiornacodebase  (com'è fatto il codice)
-│   └── BIZ2017/
-│       └── bneg0112/
-│           ├── _overview.md
-│           └── BNEG0112.md
-│
-├── Manuali/                ← /aggiornamanuale    (come si usa — utenti finali)
-│   └── BIZ2017/
-│       └── bneg0112.md
-│
-└── Rilasci/                ← /aggiornarilasci    (note di rilascio — IT/sviluppatori)
-    └── BIZ2017/
-        └── bneg0112-v1.5.md
+ClaudeWiki/
+├── index.md                    ← MOC globale, 6 colonne: Architettura/Sessioni/Manuali/Rilasci/Graphify
+├── log.md                      ← Timeline append-only
+├── global/io.md                ← Contesto personale
+├── raw/                        ← Fonti immutabili
+├── wiki/                       ← Concetti/sintesi generale
+└── progetti/<nome>/
+    ├── Architettura/           ← /analizzacodebase
+    │   ├── _overview.md
+    │   └── {file}.md           ← frontmatter: layer, depends_on, last_analyzed
+    ├── Sessioni/               ← /aggiornawiki (file per giorno)
+    │   └── 2026-04-25.md
+    ├── Manuali/                ← /aggiornamanuale (per area)
+    │   └── installazione.md
+    ├── Rilasci/                ← /aggiornarilasci
+    │   └── v1.0.0.md
+    └── Graphify/               ← /graphify, /aggiornagraphify
+        ├── graph.json          ← AST + concetti queryable
+        ├── graph.html          ← interactive viewer
+        └── GRAPH_REPORT.md     ← god nodes + community structure
 ```
 
-`index.md` è il Map of Content (MOC) radice — ogni comando lo aggiorna automaticamente aggiungendo il modulo appena documentato con link alle 4 aree:
+### Setup wiki path
 
-```markdown
-## BIZ2017
+`~/.claude/wiki-config.json` (in WSL):
 
-| Modulo   | Architettura | Sessioni | Manuali | Rilasci  |
-|----------|-------------|---------|---------|---------|
-| bneg0112 | [[.../overview\|✓]] | [[...\|✓]] | — | [[...\|v1.5]] |
+```json
+{ "wikiPath": "/home/thomas/obsidian_second_brain/second_brain/ClaudeWiki" }
 ```
 
-### /analizzacodebase e /aggiornacodebase
+### Installazione comandi (WSL)
 
-`/analizzacodebase` scansiona tutti i file sorgente del progetto corrente (`.vb`, `.cs`, `.js`, `.ts`, `.py`, ecc.) e genera un documento per file in `Architettura/` con layer architetturale, dipendenze e funzioni chiave.
+```bash
+cp /mnt/c/ClaudeCodeDashboard/.claude/commands/*.md ~/.claude/commands/
+```
 
-`/aggiornacodebase` è la versione incrementale: rianalizza solo i file cambiati dall'ultima analisi, propagando l'aggiornamento ai file che dipendono da quelli modificati tramite il campo `depends_on` nel frontmatter.
+Poi `/reload-plugins` in Claude Code.
 
-Ogni pagina ha frontmatter YAML che alimenta il Graph View di Obsidian:
+### Frontmatter Architettura/
+
+Alimenta Graph View Obsidian:
 
 ```yaml
 ---
@@ -140,34 +145,12 @@ layer: service
 depends_on:
   - database
   - clienti
-last_analyzed: 2026-04-24
+last_analyzed: 2026-04-25
+source: backend/api/users.js
 ---
 ```
 
-### /aggiornawiki
-
-Log di sessione. Traccia cosa è stato fatto, perché, quali decisioni prese.
-
-```
-/aggiornawiki ho corretto il calcolo delle commissioni in Ordini.vb,
-il problema era nel round finale
-```
-
-Claude determina il file dalla directory corrente (`BIZ2017/bneg0112.md`), legge il file se esiste, aggiorna o crea la sezione, firma con data e utente.
-
-### Wiki Condivisa in Rete
-
-Punta `wikiPath` in `~/.claude/wiki-config.json` a una cartella di rete:
-
-```json
-{ "wikiPath": "\\\\SERVER\\Wiki\\EGM-Wiki" }
-```
-
-Ogni collega che usa i comandi alimenta la stessa knowledge base. Nessun conflitto: ogni macchina lavora su progetti diversi.
-
-### Installazione Comandi
-
-Copiare i file da `.claude/commands/` della repo in `~/.claude/commands/` e creare `~/.claude/wiki-config.json` con il percorso wiki. Vedi `Manuale d'uso/` nel vault per le istruzioni complete.
+`/aggiornacodebase` rianalizza solo file modificati propagando ai dipendenti via `depends_on`.
 
 ---
 
@@ -232,71 +215,214 @@ C:\Work\           ← cartella radice
 ### Prerequisiti
 
 ```
-Node.js >= 18
-npm >= 9
-Windows (per UIAutomation terminal detection)
-Claude Code con sessioni attive
+Windows 11 22H2+ (per WSL2 mirrored networking)
+WSL2 con Ubuntu-24.04 (o altra distro)
+Node.js >= 18 (su Windows host)
+Claude Code installato dentro WSL
 ```
 
-### Installazione
+### Setup WSL hybrid
 
-```bash
-# 1. Clona il repository
-git clone https://github.com/Attilio81/ClaudeCodeDashboard.git
-cd ClaudeCodeDashboard
+Backend Node + Frontend Vite girano su Windows host nativo. Claude Code gira dentro WSL. La dashboard monitora le sessioni WSL via UNC `\\wsl.localhost\<distro>\`.
 
-# 2. Installa le dipendenze
+**1. Fork + clone (Windows)**
+
+```powershell
+# Fork via gh (in WSL o Windows)
+gh repo fork Attilio81/ClaudeCodeDashboard --clone=false
+
+# Clone su Windows host
+cd C:\
+git clone https://github.com/<tuouser>/ClaudeCodeDashboard.git
+cd C:\ClaudeCodeDashboard
+
+# Install dipendenze
 npm install
 cd backend && npm install
-cd ../frontend && npm install && cd ..
-
-# 3. (Opzionale) Configura Telegram
-cp backend/.env.example backend/.env
-# Modifica backend/.env con i tuoi token
-
-# 4. Avvia
-npm run dev
-# oppure su Windows: doppio click su start.bat
+cd ..\frontend && npm install && cd ..
 ```
 
-Apri `http://localhost:5173`
+**2. Configura WSL distro/user**
 
-Al primo avvio, il backend indicizza automaticamente tutte le sessioni esistenti in `~/.claude/projects/`.
+Modifica `backend/config.json`:
 
-### Installazione Hooks
+```json
+{
+  "wslDistro": "Ubuntu-24.04",
+  "wslUser": "thomas",
+  "projects": []
+}
+```
 
-Per abilitare stato in tempo reale e notifiche Telegram:
+Verifica nome distro con `wsl --list --verbose`.
 
-**1. Crea lo script hook:**
+**3. WSL2 mirrored networking**
+
+Crea/modifica `%USERPROFILE%\.wslconfig`:
+
+```ini
+[wsl2]
+networkingMode=mirrored
+firewall=true
+```
+
+Riavvia WSL: `wsl --shutdown`.
+
+> Mirrored networking permette al hook bash dentro WSL di pingare il backend Windows su `localhost:3001`. Se rompe VPN/Docker, torna a NAT — il hook fa fallback automatico via gateway IP.
+
+**4. Firewall: porta 3001 inbound**
+
+PowerShell come **Amministratore**:
+
+```powershell
+New-NetFirewallRule -DisplayName "ClaudeCodeDashboard" `
+  -Direction Inbound -Protocol TCP -LocalPort 3001 -Action Allow
+```
+
+**5. Configura percorsi scansionati**
+
+`backend/scan-paths.json` contiene path Linux:
+
+```json
+["/home/thomas"]
+```
+
+Il backend converte internamente in UNC. Esclusioni in `backend/excluded-paths.json` (path Linux).
+
+**6. (Opzionale) Telegram**
+
+```bash
+cp backend/.env.example backend/.env
+# Modifica TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, DEEPSEEK_API_KEY
+```
+
+**7. Avvio**
+
+```powershell
+npm run dev
+# oppure doppio click su start.bat
+```
+
+Apri `http://localhost:5173`.
+
+### Hook WSL → Dashboard Windows
+
+I hook girano dentro WSL e POST a `http://localhost:3001/api/hook-event` (mirrored networking).
+
+**1. Crea script hook in WSL:**
 
 ```bash
 mkdir -p ~/.claude/hooks
 
 cat > ~/.claude/hooks/hook-event.sh << 'EOF'
 #!/bin/bash
+set -u
 INPUT=$(cat)
-curl -s -X POST "http://localhost:3001/api/hook-event" \
-  -H "Content-Type: application/json" \
-  -d "$INPUT" > /dev/null 2>&1 || true
+[ -z "$INPUT" ] && exit 0
+
+PORT=3001
+TIMEOUT=2
+
+post() {
+  curl -fsS --max-time "$TIMEOUT" -X POST "$1/api/hook-event" \
+    -H 'Content-Type: application/json' \
+    --data-binary "$INPUT" >/dev/null 2>&1
+}
+
+# Mirrored networking → localhost punta a Windows host
+if post "http://localhost:$PORT"; then exit 0; fi
+
+# Fallback: gateway IP (NAT mode)
+GATEWAY=$(ip route show default 2>/dev/null | awk '/default/ {print $3; exit}')
+if [ -n "$GATEWAY" ]; then post "http://$GATEWAY:$PORT" || true; fi
+exit 0
 EOF
 
 chmod +x ~/.claude/hooks/hook-event.sh
 ```
 
-**2. Registra gli hook in `~/.claude/settings.json`:**
+**2. Registra hook in `~/.claude/settings.json` (sezione `hooks`):**
 
 ```json
-{
-  "hooks": {
-    "Stop":        [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }],
-    "PreToolUse":  [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }],
-    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }],
-    "Notification":[{ "matcher": "", "hooks": [{ "type": "command", "command": "bash /c/Users/<username>/.claude/hooks/hook-event.sh" }] }]
-  }
+"hooks": {
+  "Stop":         [{ "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/hook-event.sh", "async": true }] }],
+  "PreToolUse":   [{ "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/hook-event.sh", "async": true }] }],
+  "PostToolUse":  [{ "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/hook-event.sh", "async": true }] }],
+  "Notification": [{ "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/hook-event.sh", "async": true }] }]
 }
 ```
 
-> Sostituisci `<username>` con il tuo nome utente Windows.
+### Wiki path (vault Obsidian)
+
+I 5 slash command leggono il vault da `~/.claude/wiki-config.json`:
+
+```bash
+cat > ~/.claude/wiki-config.json << 'EOF'
+{
+  "wikiPath": "/home/thomas/obsidian_second_brain/second_brain/ClaudeWiki"
+}
+EOF
+```
+
+Schema vault (Karpathy):
+
+```
+ClaudeWiki/
+├── index.md              # MOC globale
+├── log.md                # Timeline append-only di tutti i comandi
+├── global/io.md          # Contesto personale
+└── progetti/<nome>/
+    ├── Architettura/
+    ├── Sessioni/
+    ├── Manuali/
+    ├── Rilasci/
+    └── Graphify/         # Opzionale, da tool esterno
+```
+
+---
+
+## Graphify (integrato via slash command)
+
+[Graphify](https://github.com/safishamsi/graphify) genera grafo deterministico AST-level del codebase. Ora integrato via slash command `/graphify` e `/aggiornagraphify` che orchestrano CLI + sync nel vault.
+
+### Installazione (in WSL)
+
+```bash
+# Recommended: uv tool (auto PATH setup)
+uv tool install graphifyy   # ⚠️ doppia y — 'graphify' è unaffiliated
+
+# In alternativa:
+pipx install graphifyy
+```
+
+> CLI binary si chiama `graphify`. Pacchetto PyPI ufficiale è `graphifyy`.
+
+### Uso dai slash command
+
+```
+/graphify             # prima volta su progetto → AST + sync nel vault
+/aggiornagraphify     # incrementale → re-extract solo file modificati
+```
+
+Output sincronizzato in `<wikiPath>/progetti/<nome>/Graphify/`:
+- `graph.json` — grafo persistente queryable
+- `graph.html` — interactive viewer (apri in browser)
+- `GRAPH_REPORT.md` — god nodes + community structure + suggested questions
+
+File esclusi dal sync: `cache/` (locale), `manifest.json`, `cost.json`.
+
+### Differenza con `/analizzacodebase`
+
+| | `/analizzacodebase` | `/graphify` |
+|---|---|---|
+| **Esecutore** | Claude Code (LLM, token cost) | CLI Python deterministica (zero LLM) |
+| **Granularità** | File-level narrativa | AST-level grafo nodi/edges |
+| **Output** | `Architettura/<file>.md` | `Graphify/{graph.json, graph.html, GRAPH_REPORT.md}` |
+| **Audience primaria** | Umano | Claude (consumo AI primario) |
+| **Update** | `/aggiornacodebase` (via `depends_on`) | `/aggiornagraphify` (via SHA256 cache) |
+| **Velocità** | Token-bound, lento | Veloce, scaling con codebase |
+
+**Complementari**: Claude legge `Graphify/GRAPH_REPORT.md` per orientarsi rapidamente, poi `Architettura/_overview.md` come fallback narrativo se Graphify lacuna.
 
 ---
 

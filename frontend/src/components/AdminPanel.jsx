@@ -51,6 +51,9 @@ export default function AdminPanel({ onClose }) {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [debugPath, setDebugPath] = useState('');
+  const [debugResult, setDebugResult] = useState(null);
+  const [debugLoading, setDebugLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -97,6 +100,21 @@ export default function AdminPanel({ onClose }) {
       const data = await res.json();
       setExcludedPaths(data.paths || []);
     } catch {}
+  };
+
+  const verifyEncoding = async () => {
+    const trimmed = debugPath.trim();
+    if (!trimmed) return;
+    setDebugLoading(true);
+    setDebugResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/debug/path-encoding?linux=${encodeURIComponent(trimmed)}`);
+      const data = await res.json();
+      setDebugResult(data);
+    } catch (err) {
+      setDebugResult({ error: err.message || 'Errore di rete' });
+    }
+    setDebugLoading(false);
   };
 
   const rescan = async () => {
@@ -217,7 +235,7 @@ export default function AdminPanel({ onClose }) {
                     value={newPath}
                     onChange={e => setNewPath(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && addScanPath()}
-                    placeholder="C:\NuovoPercorso"
+                    placeholder="/home/thomas/MyProject"
                     style={{
                       flex: 1,
                       background: 'var(--bg-inset)',
@@ -302,6 +320,106 @@ export default function AdminPanel({ onClose }) {
                       ? `✗ ${scanResult.error}`
                       : `✓ Trovati ${scanResult.found} progetti · ${scanResult.added} nuovi aggiunti · ${scanResult.total} totale`
                     }
+                  </div>
+                )}
+              </section>
+
+              {/* ── Debug Path Encoding ─────────────── */}
+              <section style={{ marginBottom: 28 }}>
+                <h3 style={{
+                  fontFamily: 'Syne, sans-serif', fontSize: '0.72rem', fontWeight: 700,
+                  color: 'var(--text-secondary)', letterSpacing: '0.12em',
+                  textTransform: 'uppercase', margin: '0 0 12px'
+                }}>
+                  Debug Path Encoding
+                </h3>
+                <p style={{
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: '0.68rem',
+                  color: 'var(--text-secondary)', margin: '0 0 12px', lineHeight: 1.6
+                }}>
+                  Verifica che un path Linux venga codificato correttamente in nome dir Claude (~/.claude/projects/&lt;dir&gt;).
+                </p>
+
+                <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                  <input
+                    type="text"
+                    value={debugPath}
+                    onChange={e => setDebugPath(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && verifyEncoding()}
+                    placeholder="/home/thomas/Costruzione_Memory"
+                    style={{
+                      flex: 1,
+                      background: 'var(--bg-inset)',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 6,
+                      padding: '7px 10px',
+                      fontFamily: 'JetBrains Mono, monospace', fontSize: '0.7rem',
+                      color: 'var(--text-primary)', outline: 'none'
+                    }}
+                  />
+                  <button
+                    onClick={verifyEncoding}
+                    disabled={debugLoading || !debugPath.trim()}
+                    style={{
+                      padding: '7px 14px',
+                      background: 'var(--blue-dim)',
+                      border: '1px solid var(--blue-border)',
+                      borderRadius: 6, color: 'var(--blue)',
+                      fontFamily: 'Syne, sans-serif', fontSize: '0.7rem',
+                      fontWeight: 700, cursor: 'pointer',
+                      opacity: (!debugPath.trim() || debugLoading) ? 0.5 : 1
+                    }}
+                  >
+                    {debugLoading ? <span className="spin" /> : 'VERIFICA'}
+                  </button>
+                </div>
+
+                {debugResult && (
+                  <div style={{
+                    padding: '10px 12px',
+                    background: debugResult.error ? 'var(--red-dim)' : (debugResult.exists ? 'var(--green-dim)' : 'rgba(255,180,0,0.08)'),
+                    border: `1px solid ${debugResult.error ? 'var(--red-border)' : (debugResult.exists ? 'var(--green-border)' : 'rgba(255,180,0,0.3)')}`,
+                    borderRadius: 6,
+                    fontFamily: 'JetBrains Mono, monospace', fontSize: '0.65rem',
+                    color: 'var(--text-primary)',
+                    lineHeight: 1.7,
+                    wordBreak: 'break-all'
+                  }}>
+                    {debugResult.error ? (
+                      <div style={{ color: 'var(--red)' }}>✗ {debugResult.error}</div>
+                    ) : (
+                      <>
+                        <div>
+                          <span style={{ color: 'var(--text-muted)' }}>computed:</span>{' '}
+                          <span style={{ color: 'var(--text-bright)' }}>{debugResult.computed}</span>
+                        </div>
+                        <div>
+                          <span style={{ color: 'var(--text-muted)' }}>distro:</span>{' '}
+                          {debugResult.wslDistro} · <span style={{ color: 'var(--text-muted)' }}>user:</span> {debugResult.wslUser}
+                        </div>
+                        <div style={{ marginTop: 4 }}>
+                          {debugResult.exists ? (
+                            <span style={{ color: 'var(--green)' }}>
+                              ✓ exists · {debugResult.sessionFiles} session file(s)
+                            </span>
+                          ) : (
+                            <span style={{ color: '#ffb400' }}>
+                              ⚠ dir non trovata in ~/.claude/projects/
+                            </span>
+                          )}
+                        </div>
+                        {!debugResult.exists && debugResult.suggestions && debugResult.suggestions.length > 0 && (
+                          <div style={{ marginTop: 6 }}>
+                            <span style={{ color: 'var(--text-muted)' }}>suggerimenti:</span>
+                            <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+                              {debugResult.suggestions.map((s, i) => (
+                                <li key={i} style={{ color: 'var(--text-secondary)' }}>{s}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </section>
